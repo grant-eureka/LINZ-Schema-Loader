@@ -1,0 +1,22 @@
+[Desktop Entry]
+Comment[en_US]=LINZ Schema Loader
+Comment=LINZ Schema Loader
+Comment[en_GB]=LINZ Schema Loader
+Exec=env 'PYTHONPATH=/opt/qgis_3_44_11/python:$PYTHONPATH; PATH=/opt/qgis_3_44_11/bin:$PATH' '/home/Grant/.local/share/QGIS/QGIS3/profiles/default/python/plugins/linz_schema_loader/linz_schema_loader.pyz'
+GenericName[en_US]=LINZ Schema Loader
+GenericName=LINZ Schema Loader
+GenericName[en_GB]=LINZ Schema Loader
+Icon=/home/Grant/.local/share/QGIS/QGIS3/profiles/default/python/plugins/linz_schema_loader/icon.svg
+MimeType=
+Name[en_US]=LINZ Schema Loader
+Name=LINZ Schema Loader
+Name[en_GB]=LINZ Schema Loader
+Path=
+StartupNotify=true
+Terminal=false
+TerminalOptions=
+Type=Application
+X-DBUS-ServiceName=
+X-DBUS-StartupType=none
+X-KDE-SubstituteUID=false
+X-KDE-Username=

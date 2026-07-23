@@ -1,0 +1,5 @@
+# This file contains additional metadata for this application.
+
+[license]
+general=Available under GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
+linz=This work is based on/includes Toitū Te Whenua Land Information New Zealand data which are licensed by Toitū Te Whenua Land Information New Zealand for re-use under the Creative Commons Attribution 4.0 International license.

@@ -1,0 +1,38 @@
+# This file contains metadata for this plugin.
+
+[general]
+name=LINZ Schema Loader
+version=1.06.04
+qgisMinimumVersion=3.40
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=QGIS Plugin to load New Zealand LINZ Data Service *.csv export data files directly into a MariaDB/MySQL database and create GIS layers and relationships.
+
+about=QGIS Plugin/Standalone App to manage a local MariaDB/MySQL database with New Zealand LINZ data.
+  Options for database schema management, importing (*.csv) GIS data files, creating indexes and some predefined database views.
+  Handles spatial and non-spatial *.csv files exported and downloaded from LINZ Data Service at https://data.linz.govt.nz/data/
+  Ability to create QGIS vector layers of the imported data. Options to define known relationships between tables and default symbology and labels for the map layers.
+  A default New Zealand topographic style database is provided that can be loaded into a QGIS project and used to style topographical features.
+  Unlike the "LINZ Data Importer" and "Koordinates" plugins, LINZ Schema Loader loads exported LINZ data directly into a database much more reliably.
+  Requires Python modules for database access (eg. mariadb or MySQLdb)
+
+author=Grant Pearson, Eureka Technology Limited
+email=grant.eureka@xtra.co.nz
+homepage=https://github.com/grant-eureka/LINZ-Schema-Loader
+tracker=https://github.com/grant-eureka/LINZ-Schema-Loader
+repository=https://plugins.qgis.org/
+
+changelog=
+  1.06.03
+    Release to QGIS plugin repository.
+    Updates to relationships and views scripts.
+    Improved selection of PyQt module.
+    Improved stylesheets.
+    Standardised buttons throughout App.
+    Fixed error handling on running SQL script.
+
+tags=QGIS,python,attribute,table,feature,SQL,database,mariadb,mysql,import,load,create,table,view,index,relation,join,vector,map,layer,style,symbol,label,LINZ
+category=Database
+icon=icon.svg
+experimental=True
+deprecated=False

@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <author>Grant Pearson</author>
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="windowModality">
+   <enum>Qt::WindowModality::ApplicationModal</enum>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>150</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>600</width>
+    <height>150</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>600</width>
+    <height>150</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>GIS Schema Name</string>
+  </property>
+  <layout class="QFormLayout" name="formLayout">
+   <item row="0" column="0">
+    <widget class="QLabel" name="schemaLabel">
+     <property name="minimumSize">
+      <size>
+       <width>65</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>Schema:</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QLineEdit" name="schemaField">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background-color: rgb(255, 255, 255);
+color: rgb(0, 0, 0);</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="descriptionLabel">
+     <property name="minimumSize">
+      <size>
+       <width>65</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>Description:</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QLineEdit" name="descriptionField">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background-color: rgb(255, 255, 255);
+color: rgb(0, 0, 0);</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <layout class="QGridLayout" name="gridLayout">
+     <property name="leftMargin">
+      <number>5</number>
+     </property>
+     <property name="rightMargin">
+      <number>5</number>
+     </property>
+     <property name="horizontalSpacing">
+      <number>5</number>
+     </property>
+     <property name="verticalSpacing">
+      <number>0</number>
+     </property>
+     <item row="2" column="0">
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPushButton" name="okButton">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>0</width>
+         <height>34</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>OK</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+       <property name="flat">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QPushButton" name="cancelButton">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
