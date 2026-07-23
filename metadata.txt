@@ -23,6 +23,7 @@ tracker=https://github.com/grant-eureka/LINZ-Schema-Loader
 repository=https://plugins.qgis.org/
 
 changelog=
+  1.06.04
   1.06.03
     Release to QGIS plugin repository.
     Updates to relationships and views scripts.
