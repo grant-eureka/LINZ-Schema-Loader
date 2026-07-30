@@ -169,7 +169,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             self.refresh(self)
             if not Database.isDatabaseConnector():
                 msg = '\nUnable to connect to database:\n' + \
-                      'No MariaDB/MySQL Python Connector module found.'
+                      f'No Python{sys.version} module for MariaDB/MySQL found.'
                 self.appendLog(msg)
                 MessageBoxes.messageBox(
                     self,
@@ -711,21 +711,26 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
 
     def getGISschemas(self):
         sql = "SELECT s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME) " \
-            "FROM information_schema.TABLES t " \
-            "INNER JOIN information_schema.schemata s " \
-            "ON t.TABLE_SCHEMA=s.SCHEMA_NAME " \
-            "WHERE (s.SCHEMA_NAME like '%gis%' " \
-            " OR s.SCHEMA_NAME like '%geo%' " \
-            " OR lower(t.TABLE_NAME) in " \
-            "  ('geometry_columns', 'spatial_ref_sys', 'table_datasets')) " \
-            "AND s.SCHEMA_NAME not in ("
+              "FROM information_schema.TABLES t " \
+              "INNER JOIN information_schema.schemata s " \
+              "ON t.TABLE_SCHEMA=s.SCHEMA_NAME " \
+              "WHERE (s.SCHEMA_NAME like '%gis%' " \
+              " OR s.SCHEMA_NAME like '%geo%' " \
+              " OR lower(t.TABLE_NAME) in " \
+              "  ('geometry_columns', 'spatial_ref_sys', 'table_datasets')) " \
+              "AND s.SCHEMA_NAME not in ("
         for schema in SCHEMAS:
-            sql += f"'{schema[0]}', "
+            sql += "%s, "
         sql += \
-            "'information_schema', 'sys', 'performance_schema', 'mysql') " \
+            "'information_schema', 'performance_schema', 'sys', " \
+            "'mysql', 'bin_log') " \
             "GROUP BY s.SCHEMA_NAME, s.SCHEMA_COMMENT " \
-            "ORDER BY count(t.TABLE_NAME) desc, s.SCHEMA_NAME asc;"
-        schemas = Database.readDatabase(self, self.cnx, sql)
+            "ORDER BY count(t.TABLE_NAME) desc, s.SCHEMA_NAME asc"
+        s = []
+        for schema in SCHEMAS:
+            s.append(schema[0])
+        par = tuple(s)
+        schemas = Database.readDatabase(self, self.cnx, sql, par)
         for schema in schemas:
             SCHEMAS.append([schema[0], schema[1]])
     # / getGISschemas
@@ -738,7 +743,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
                 fidName = field.fieldName
         if fidName:
             sql = f"SELECT ifnull(max({fidName}), 0) " \
-                  f"FROM {schemaname}.{tablename};"
+                  f"FROM {schemaname}.{tablename}"
             fid = Database.readDatabaseResult(self, self.cnx, sql)
         else:
             fid = 0
@@ -771,38 +776,41 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
 
     def loadDatasetTable(self, schemaname):
         sql = f"INSERT INTO {schemaname}.table_datasets " \
-            "(schemaname, tablename, dataset_cnt) " \
-            "SELECT " \
-            "t.TABLE_SCHEMA, t.TABLE_NAME, 0 " \
-            "FROM information_schema.TABLES t " \
-            "WHERE " \
-            f"t.TABLE_SCHEMA = '{schemaname}' " \
-            "AND t.TABLE_NAME NOT IN " \
-            "('geometry_columns', 'spatial_ref_sys', 'table_datasets') " \
-            "EXCEPT " \
-            "SELECT d.schemaname, d.tablename, 0 " \
-            f"FROM {schemaname}.table_datasets d " \
-            f"WHERE d.schemaname='{schemaname}';"
-        Database.executeSQL(self, self.cnx, sql, True)
+              "(schemaname, tablename, dataset_cnt) " \
+              "SELECT " \
+              "t.TABLE_SCHEMA, t.TABLE_NAME, 0 " \
+              "FROM information_schema.TABLES t " \
+              "WHERE " \
+              "t.TABLE_SCHEMA = %s " \
+              "AND t.TABLE_NAME NOT IN " \
+              "('geometry_columns', 'spatial_ref_sys', 'table_datasets') " \
+              "EXCEPT " \
+              "SELECT d.schemaname, d.tablename, 0 " \
+              f"FROM {schemaname}.table_datasets d " \
+              "WHERE d.schemaname=%s"
+        par = tuple([schemaname, schemaname])
+        Database.executeSQL(self, self.cnx, sql, par, silent=True)
         Database.commit(self, self.cnx)
     # /loadDatasetTable
 
     def clearDatasetTable(self, schemaname, tablename=None):
         if schemaname:
+            pars = [schemaname]
             sql = f"DELETE FROM {schemaname}.table_datasets " \
-                f"WHERE schemaname='{schemaname}' "
+                  "WHERE schemaname=%s"
             if tablename:
-                sql += f"AND tablename='{tablename}';"
-            else:
-                sql += ";"
-            Database.executeSQL(self, self.cnx, sql)
+                sql += " AND tablename=%s"
+                pars.append(tablename)
+            par = tuple(pars)
+            Database.executeSQL(self, self.cnx, sql, par)
+            pars = [schemaname]
             sql = f"DELETE FROM {schemaname}.geometry_columns " \
-                f"WHERE F_TABLE_SCHEMA='{schemaname}' "
+                  "WHERE F_TABLE_SCHEMA=%s"
             if tablename:
-                sql += f"AND F_TABLE_NAME='{tablename}';"
-            else:
-                sql += ";"
-            Database.executeSQL(self, self.cnx, sql)
+                sql += " AND F_TABLE_NAME=%s"
+                pars.append(tablename)
+            par = tuple(pars)
+            Database.executeSQL(self, self.cnx, sql, par)
             Database.commit(self, self.cnx)
         # /clearDatasetTable
 
@@ -821,10 +829,11 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             "AND c.TABLE_SCHEMA = t.TABLE_SCHEMA " \
             "AND c.TABLE_NAME = t.TABLE_NAME " \
             "WHERE " \
-            f"t.TABLE_SCHEMA='{schemaname}' " \
-            f"AND t.TABLE_NAME='{tablename}' " \
-            "ORDER BY c.ORDINAL_POSITION ASC;"
-        rows = Database.readDatabase(self, self.cnx, sql)
+            "t.TABLE_SCHEMA=%s " \
+            "AND t.TABLE_NAME=%s " \
+            "ORDER BY c.ORDINAL_POSITION ASC"
+        par = tuple([schemaname, tablename])
+        rows = Database.readDatabase(self, self.cnx, sql, par)
         tableDef = None
         for columnDef in rows:
             if tableDef:

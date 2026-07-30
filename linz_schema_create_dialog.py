@@ -52,9 +52,43 @@ class SchemaCreateDialog(QDialog):
         self.ui.cancelButton.setFont(parent.standardCancelButton.font())
 
     def ok(self):
-        schema = [self.ui.schemaField.text(), self.ui.descriptionField.text()]
-        self.parent.setNewSchema(schema)
-        self.accept()
+        schemaname = self.ui.schemaField.text()
+        systemSchemas = ['information_schema', 'performance_schema', 'sys',
+                         'mysql', 'bin_log']
+
+        if schemaname is None:
+            msg = "Schema name required."
+            MessageBoxes.messageBox(
+                self.parent,
+                MessageBoxes.INFORMATION,
+                Utilities.getApptitle(self.parent),
+                msg)
+            return
+        valid = True
+        for c in schemaname.upper():
+            v = (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') \
+                or c == '_'
+            if not v:
+                valid = False
+        if valid:
+            if schemaname.lower() in systemSchemas:
+                msg = f'"{schemaname}" is a system schema and can not be used.'
+                MessageBoxes.messageBox(
+                    self.parent,
+                    MessageBoxes.INFORMATION,
+                    Utilities.getApptitle(self.parent),
+                    msg)
+            else:
+                schema = [schemaname, self.ui.descriptionField.text()]
+                self.parent.setNewSchema(schema)
+                self.accept()
+        else:
+            msg = "Invalid identifier:\nSchema name has invalid characters."
+            MessageBoxes.messageBox(
+                self.parent,
+                MessageBoxes.INFORMATION,
+                Utilities.getApptitle(self.parent),
+                msg)
 
     def cancel(self):
         self.parent.setNewSchema(None)

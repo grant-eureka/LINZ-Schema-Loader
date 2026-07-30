@@ -8,7 +8,7 @@ import zipfile
 import io
 import csv
 import glob
-from xml.etree import ElementTree
+from defusedxml import ElementTree
 import datetime
 from osgeo import osr
 import importlib.util
@@ -108,39 +108,83 @@ class SchemasActions():
     # /init
 
     def requestSchemaCreate(self, parent, cnx, schemaname, description):
-        if MessageBoxes.messageBox(
-           parent,
-           MessageBoxes.QUESTION,
-           Utilities.getApptitle(parent),
-           f'Create new schema "{schemaname}"?',
-           MessageBoxes.YES_NO) == MessageBoxes.YES.value:
-            self.createSchema(parent, cnx, schemaname, description)
+        parent.appendLog(f'requestSchemaCreate {schemaname} : {description}')
+        if Database.isSchemaExist(parent, cnx, schemaname):
+            if Database.isGISSchemaExist(parent, cnx, schemaname):
+                MessageBoxes.messageBox(
+                    parent,
+                    MessageBoxes.INFORMATION,
+                    Utilities.getApptitle(parent),
+                    f'GIS schema "{schemaname}" already exists.',
+                    MessageBoxes.OK)
+                parent.appendLog('Create schema cancelled')
+                return False
+            else:
+                sql = "SELECT DEFAULT_CHARACTER_SET_NAME " \
+                      "FROM information_schema.SCHEMATA " \
+                      "WHERE lower(SCHEMA_NAME)=lower(%s)"
+                par = tuple([schemaname])
+                charset = '' + Database.readDatabaseResult(
+                    parent, cnx, sql, par, silent=True)
+                if 'utf8' in charset:
+                    charsetMsg = ''
+                else:
+                    charsetMsg = f'Warning: Existing schema "{schemaname}" ' + \
+                                 f'uses character set "{charset}", ' + \
+                                 '"utf8" recommended.\n\n'
+                if MessageBoxes.messageBox(
+                   parent,
+                   MessageBoxes.QUESTION,
+                   Utilities.getApptitle(parent),
+                   f'Schema "{schemaname}" already exists.\n\n'
+                   f'{charsetMsg}'
+                   f'Make "{schemaname}" a GIS schema?',
+                   MessageBoxes.YES_NO) != MessageBoxes.YES.value:
+                    parent.appendLog('Create schema cancelled')
+                    return False
+                else:
+                    self.createSchema(
+                        parent, cnx, schemaname, description, False)
         else:
-            parent.appendLog('Create schema cancelled')
-            return False
+            if MessageBoxes.messageBox(
+               parent,
+               MessageBoxes.QUESTION,
+               Utilities.getApptitle(parent),
+               f'Create new GIS schema "{schemaname}"?',
+               MessageBoxes.YES_NO) != MessageBoxes.YES.value:
+                parent.appendLog('Create schema cancelled')
+                return False
+            self.createSchema(parent, cnx, schemaname, description, True)
         return True
     # /requestSchemaCreate
 
-    def createSchema(self, parent, cnx, schemaname, description):
+    def createSchema(self, parent, cnx, schemaname, description, new):
         parent.setCursor(Qt.CursorShape.WaitCursor)
-        parent.appendLog(f'\nCreating schema {schemaname}...')
-        sql = f"CREATE SCHEMA {schemaname};"
-        Database.executeSQL(parent, cnx, sql)
-        parent.appendLog(f'Created schema {schemaname}')
-        parent.appendLog('Define GIS schema...')
-        if description:
-            comment = description
+        parent.appendLog(f'\nCreating GIS schema "{schemaname}"...')
+        if new:
+            sql = f"CREATE SCHEMA {schemaname}"
+            if Database.executeSQL(parent, cnx, sql,
+                                   silent=False, logOnly=False):
+                parent.appendLog(f'Created schema "{schemaname}"')
+            else:
+                return
+            parent.appendLog('Define GIS schema...')
+            if description:
+                comment = description
+            else:
+                comment = schemaname + " schema"
+            sql = f"ALTER SCHEMA {schemaname} " \
+                  "DEFAULT CHARACTER SET='utf8' " \
+                  "DEFAULT COLLATE='utf8_general_ci'" \
+                  "COMMENT=%s"
+            par = tuple([comment])
+            Database.executeSQL(parent, cnx, sql, par, silent=True)
         else:
-            comment = schemaname + " schema"
-        sql = f"ALTER SCHEMA {schemaname} " \
-              "DEFAULT CHARACTER SET='utf8' " \
-              "DEFAULT COLLATE='utf8_general_ci'" \
-              f"COMMENT='{comment}';"
-        Database.executeSQL(parent, cnx, sql, True)
+            parent.appendLog(f'Schema "{schemaname}" already exists')
         sql = "GRANT select, insert, update, delete, execute " \
               f"ON {schemaname}.*" \
-              "TO root@localhost WITH GRANT OPTION;"
-        Database.executeSQL(parent, cnx, sql, True)
+              "TO root@localhost WITH GRANT OPTION"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog('Create geometry tables')
         sql = "CREATE TABLE IF NOT EXISTS " \
               f"{schemaname}.geometry_columns (" \
@@ -157,16 +201,16 @@ class SchemasActions():
               "qgis_xmax          FLOAT, " \
               "qgis_ymax          FLOAT, " \
               "qgis_pkey          VARCHAR(256), " \
-              "INDEX (f_table_name) );"
-        Database.executeSQL(parent, cnx, sql, True)
+              "INDEX (f_table_name) )"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         sql = "CREATE TABLE IF NOT EXISTS " \
               f"{schemaname}.spatial_ref_sys (" \
               "srid       INTEGER(11) NOT NULL PRIMARY KEY, " \
               "auth_name  VARCHAR(256), " \
               "auth_srid  INTEGER(11), " \
               "srtext     VARCHAR(2048), " \
-              "proj4text  VARCHAR(2048) );"
-        Database.executeSQL(parent, cnx, sql, True)
+              "proj4text  VARCHAR(2048) )"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog('Create dataset table')
         sql = "CREATE TABLE IF NOT EXISTS " \
               f"{schemaname}.table_datasets (" \
@@ -177,7 +221,7 @@ class SchemasActions():
               " dataset_cnt INTEGER, " \
               " dataset_load_seconds INTEGER, " \
               "PRIMARY KEY (schemaname, tablename));"
-        Database.executeSQL(parent, cnx, sql, True)
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.loadDatasetTable(schemaname)
         parent.appendLog('Defined GIS schema')
         parent.appendLog(f'Created schema {schemaname}')
@@ -215,13 +259,14 @@ class SchemasActions():
         sql = f"ALTER SCHEMA {schemaname} " \
               "DEFAULT CHARACTER SET='utf8' " \
               "DEFAULT COLLATE='utf8_general_ci'" \
-              f"COMMENT='{comment}';"
-        Database.executeSQL(parent, cnx, sql, True)
+              "COMMENT=%s"
+        par = tuple([comment])
+        Database.executeSQL(parent, cnx, sql, par, silent=True)
         parent.appendLog('  update schema privilges...')
         sql = "GRANT select, insert, update, delete, execute " \
               f"ON {schemaname}.*" \
-              "TO root@localhost WITH GRANT OPTION;"
-        Database.executeSQL(parent, cnx, sql, True)
+              "TO root@localhost WITH GRANT OPTION"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog('  update geometry tables...')
         sql = "CREATE TABLE IF NOT EXISTS " \
               f"{schemaname}.geometry_columns (" \
@@ -238,16 +283,16 @@ class SchemasActions():
               "qgis_xmax          FLOAT, " \
               "qgis_ymax          FLOAT, " \
               "qgis_pkey          VARCHAR(256), " \
-              "INDEX (f_table_name) );"
-        Database.executeSQL(parent, cnx, sql, True)
+              "INDEX (f_table_name) )"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         sql = "CREATE TABLE IF NOT EXISTS " \
               f"{schemaname}.spatial_ref_sys (" \
               "srid       INTEGER(11) NOT NULL PRIMARY KEY, " \
               "auth_name  VARCHAR(256), " \
               "auth_srid  INTEGER(11), " \
               "srtext     VARCHAR(2048), " \
-              "proj4text  VARCHAR(2048) );"
-        Database.executeSQL(parent, cnx, sql, True)
+              "proj4text  VARCHAR(2048) )"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog('  create/update dataset table...')
         sql = "CREATE TABLE IF NOT EXISTS " \
               f"{schemaname}.table_datasets (" \
@@ -257,12 +302,12 @@ class SchemasActions():
               " dataset_date DATE, " \
               " dataset_cnt INTEGER, " \
               " dataset_load_seconds INTEGER, " \
-              "PRIMARY KEY (schemaname, tablename));"
-        Database.executeSQL(parent, cnx, sql, True)
-        sql = "ALTER TABLE " \
-              f"{schemaname}.table_datasets ADD COLUMN IF NOT EXISTS (" \
-              " dataset_load_seconds INTEGER );"
-        Database.executeSQL(parent, cnx, sql, True)
+              "PRIMARY KEY (schemaname, tablename))"
+        Database.executeSQL(parent, cnx, sql, silent=True)
+        sql = f"ALTER TABLE {schemaname}.table_datasets " \
+              "ADD COLUMN IF NOT EXISTS (" \
+              " dataset_load_seconds INTEGER )"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.loadDatasetTable(schemaname)
         parent.unsetCursor()
     # /updateSchemaDefinition
@@ -276,7 +321,7 @@ class SchemasActions():
             for table in tables:
                 if self.isPurgeTable(table[0]):
                     parent.appendLog(f'    drop table {table[0]}')
-                    sql = f"DROP TABLE {schemaname}.{table[0]};"
+                    sql = f"DROP TABLE {schemaname}table[0]"
                     Database.executeSQL(parent, cnx, sql)
                     drop = True
         else:
@@ -387,12 +432,12 @@ class SchemasActions():
     def dropSchema(self, parent, cnx, schemaname):
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog(f'Droping schema {schemaname}...')
-        sql = f"DROP SCHEMA {schemaname};"
+        sql = f"DROP SCHEMA {schemaname}"
         Database.executeSQL(parent, cnx, sql)
         sql = "REVOKE ALL " \
               f"ON {schemaname}.*" \
-              "FROM root@localhost;"
-        Database.executeSQL(parent, cnx, sql, True)
+              "FROM root@localhost"
+        Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog(f'Dropped schema {schemaname}')
         parent.unsetCursor()
     # /dropSchema
@@ -421,11 +466,11 @@ class SchemasActions():
         directoryName = None
         sql = "SELECT dataset_file " \
               f"FROM {schemaname}.table_datasets " \
-              f"WHERE schemaname='{schemaname}' "\
+              "WHERE schemaname=%s "\
               "AND dataset_file IS NOT NULL " \
-              "ORDER BY dataset_date DESC " \
-              "LIMIT 1;"
-        directoryName = Database.readDatabaseResult(parent, cnx, sql)
+              "ORDER BY dataset_date DESC"
+        par = tuple([schemaname])
+        directoryName = Database.readDatabaseResult(parent, cnx, sql, par)
         directoryName = MessageBoxes.openDirectoryBox(
             parent, "Open LINZ Download ZIP Directory", directoryName)
         return directoryName
@@ -684,23 +729,21 @@ class SchemasActions():
         parent.appendLog(f'    load data from {uzipFileName}')
         if appendCnt > 1:
             parent.appendLog(f'    skip {appendCnt:,} lines')
+        # todo: convert all to strings?
+        pars = [uzipFileName, appendCnt]
         sql = "LOAD DATA "
         # local = Database.isLocalDB(parent, cnx)
         # if not local:  # force infile local for file security
         sql += "LOCAL "
-        sql += f"INFILE '{uzipFileName}'\n"
+        sql += "INFILE %s\n"
         sql += f"IGNORE INTO TABLE {schemaname}.{tablename}\n" + \
             "FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY 0x22 " + \
             "ESCAPED BY 0x5c\n" + \
             "LINES TERMINATED BY 0x0d0a\n" \
-            f"IGNORE {appendCnt} LINES\n"
+            "IGNORE %s LINES\n"
         isFirst = True
         hasTmps = False
         for field in fields:
-            #  parent.appendLog(
-            #     f"{field.fieldName} > {field.fieldType} "
-            #     f" isNumberField={Utilities.isNumberField(field.fieldType)}"
-            #     f" isKey={field.isKey}")
             isTmp = field.fieldType == 'TEXT' \
                 or field.fieldType == 'VARCHAR' \
                 or field.fieldType == 'STRING' \
@@ -714,10 +757,11 @@ class SchemasActions():
             else:
                 fieldName = field.fieldName
             if isFirst:
-                sql += f"({fieldName}"
+                sql += "(%s"
                 isFirst = False
             else:
-                sql += f", {fieldName}"
+                sql += ", %s"
+            pars.append(fieldName)
         sql += ")\n"
         if hasTmps:
             isFirst = True
@@ -734,9 +778,10 @@ class SchemasActions():
                         else:
                             sql += ",\n    "
                         fieldName = "@temp_" + field.fieldName
-                        sql += f"{field.fieldName} = " \
-                            f"nullif(substring({fieldName}, 1," \
-                            f" {field.fieldWidth}), '')"
+                        sql += "%s = " \
+                            "nullif(substring(%s, 1," \
+                            " %s), '')"
+                        pars.extend(fieldName, fieldName, field.fieldWidth)
                     isTmp = Utilities.isNumberField(field.fieldType) \
                         or Utilities.isDateField(field.fieldType)
                     if isTmp:
@@ -746,13 +791,15 @@ class SchemasActions():
                         else:
                             sql += ",\n    "
                         fieldName = "@temp_" + field.fieldName
-                        sql += f"{field.fieldName} = " \
-                            f"IF({fieldName}='' OR {fieldName}='\n' OR " \
-                            f"{fieldName}='\r', NULL, {fieldName})"
-        sql += ";"
-        # parent.appendLog(f"{sql}")
+                        sql += "%s = " \
+                            "IF(%s='' OR %s='\n' OR " \
+                            "%s='\r', NULL, %s)"
+                        pars.extend(fieldName, fieldName, fieldName,
+                                    fieldName, fieldName)
+        par = tuple(pars)
+        parent.appendLog(f"{sql}\n{par}")  # debug
         parent.appendLog(f'    load started {Utilities.getNowString()}...')
-        Database.executeSQLwithWarnings(parent, cnx, sql)
+        Database.executeSQLwithWarnings(parent, cnx, sql, par)
         Database.commit(parent, cnx)
         parent.appendLog(f'    load finished {Utilities.getNowString()}...')
     # /loadTableDirect
@@ -765,7 +812,8 @@ class SchemasActions():
         startTime = Utilities.getNow()
         self.dropIndexes(parent, cnx, schemaname, tablename)
         parent.appendLog(f'    load feature data into {schemaname}.{tablename}')
-        sql1 = self.loadTableFileSqlPrefix(schemaname, tablename, fields)
+        sql = self.loadTableFileSql(
+            parent, cnx, schemaname, tablename, fields)
         parent.appendLog(f'    load data from {csvFileName}')
         counters = Counters()
         appendCnt = self.featureCount(parent, cnx,
@@ -778,69 +826,65 @@ class SchemasActions():
         csv.field_size_limit(sys.maxsize)
         csvFile = io.TextIOWrapper(zip.open(csvFilePath), encoding="utf-8-sig")
         reader = csv.DictReader(csvFile)
-        for row in reader:
-            counters.increment(counters.READ)
-            keyValue = self.getKeyValue(row, fields)
-            if self.isFeatureExist(parent, cnx,
-                                   append, appendCnt, counters.readCnt,
-                                   schemaname, tablename,
-                                   key, keyValue):
-                counters.increment(counters.DUPLICATE)
-            else:
-                isFirst = True
-                geoMissing = False
-                for field in fields:
-                    if isFirst:
-                        sql = sql1
-                        isFirst = False
-                    else:
-                        sql += ",\n "
-                    if field.fieldSrc == "1":
-                        value = f"{counters.readCnt}"
-                    else:
-                        value = row[field.fieldSrc]
-                        if Utilities.isGeometryField(field.fieldType):
-                            if Utilities.isNull(value):
-                                geoMissing = True
-                            else:
-                                geotype = value[0:value.find('(') - 1] \
-                                    .rstrip().upper()
-                                if Utilities.isGeometryField(geotype):
-                                    geometry = self.modGeometryType(
-                                        parent, cnx,
-                                        counters.readCnt, geometry, geotype,
-                                        schemaname, tablename)
-                                    value = Utilities.getGeometryValue(
-                                        geometry, geotype, value)
-                                else:
-                                    geoMissing = True
-                        elif Utilities.isNull(value):
-                            value = "NULL"
-                        elif Utilities.isTextField(field.fieldType):
-                            value = Utilities.getTextValue(
-                                value, field.fieldWidth)
-                        elif Utilities.isDateField(field.fieldType):
-                            value = "'" + value + "'"
-                        elif isinstance(value, str):
-                            value = "'" + value + "'"
-                        else:  # may need more conversions for other field types
-                            pass
-                    sql += value
-                sql += ");"
-                if geoMissing:
-                    counters.increment(counters.FAIL)
-                    parent.appendLog(
-                        f'Error inserting record {counters.readCnt} '
-                        f'(id={keyValue}) into '
-                        f'{schemaname}.{tablename}'
-                        f' - Invalid feature geometry')
+        cursor = Database.openSqlCursor(parent, cnx)
+        if cursor:
+            for row in reader:
+                counters.increment(counters.READ)
+                keyValue = self.getKeyValue(row, fields)
+                if self.isFeatureExist(parent, cnx,
+                                       append, appendCnt, counters.readCnt,
+                                       schemaname, tablename,
+                                       key, keyValue):
+                    counters.increment(counters.DUPLICATE)
                 else:
-                    self.insertFeature(parent, cnx, schemaname, tablename,
-                                       sql, counters)
-            parent.readStatus(
-                f"{schemaname}.{tablename}",
-                startTimeLoad, fcnt, counters.readCnt)
+                    pars = []
+                    geoMissing = False
+                    for field in fields:
+                        if field.fieldSrc == "1":
+                            value = f"{counters.readCnt}"
+                        else:
+                            value = row[field.fieldSrc]
+                            if Utilities.isGeometryField(field.fieldType):
+                                if Utilities.isNull(value):
+                                    geoMissing = True
+                                else:
+                                    geotype = value[0:value.find('(') - 1] \
+                                        .rstrip().upper()
+                                    if Utilities.isGeometryField(geotype):
+                                        geometry = self.modGeometryType(
+                                            parent, cnx,
+                                            counters.readCnt, geometry, geotype,
+                                            schemaname, tablename)
+                                        value = Utilities.getGeometryValue(
+                                            geometry, geotype, value)
+                                    else:
+                                        geoMissing = True
+                            elif Utilities.isNull(value):
+                                value = None
+                            elif Utilities.isTextField(field.fieldType):
+                                value = Utilities.getTextValue(
+                                    value, field.fieldWidth)
+                            else:  # may need more conversions for field types
+                                pass
+                        pars.append(value)
+                    if geoMissing:
+                        counters.increment(counters.FAIL)
+                        parent.appendLog(
+                            f'Error inserting record {counters.readCnt} '
+                            f'(id={keyValue}) into '
+                            f'{schemaname}.{tablename}'
+                            f' - Invalid feature geometry')
+                    else:
+                        par = tuple(pars)
+                        parent.appendLog(f"{sql}\n{par}")  # debug
+                        self.insertFeature(
+                            parent, cnx, cursor, schemaname, tablename,
+                            sql, par, counters)
+                parent.readStatus(
+                    f"{schemaname}.{tablename}",
+                    startTimeLoad, fcnt, counters.readCnt)
         Database.commit(parent, cnx)
+        Database.closeSqlCursor(parent, cursor)
         csvFile.close()
         parent.appendLog(f'    load finished {Utilities.getNowString()}...')
         parent.appendLog(
@@ -861,9 +905,10 @@ class SchemasActions():
         return geometry
     # /loadTableFile
 
-    def insertFeature(self, parent, cnx, schemaname, tablename, sql, counters):
+    def insertFeature(self, parent, cnx, cursor, schemaname, tablename,
+                      sql, parameters, counters):
         try:
-            if Database.executeSQL(parent, cnx, sql, True):
+            if Database.executeSqlCursor(parent, cursor, sql, parameters):
                 counters.increment(counters.WRITE)
                 if counters.writeCnt % 1000 == 0:
                     Database.commit(parent, cnx)
@@ -884,18 +929,20 @@ class SchemasActions():
                 # parent.appendLog(err.errSql)
     # /insertFeature
 
-    def loadTableFileSqlPrefix(self, schemaname, tablename, fields):
-        sql = f"INSERT INTO {schemaname}.{tablename}\n("
+    def loadTableFileSql(self, schemaname, tablename, fields):
+        sql = f"INSERT INTO {schemaname}.{tablename} \n"
         isFirst = True
         for field in fields:
             if isFirst:
-                sql = f"{sql}{field.fieldName}"
+                sql1 = f"({field.fieldNmae}"
+                sql2 = "(%s"
                 isFirst = False
             else:
-                sql = f"{sql}, {field.fieldName}"
-        sql += ")\nVALUES\n("
+                sql1 += f", {field.fieldNmae}"
+                sql2 += ", %s"
+        sql += sql1 + ")\nVALUES\n" + sql2
         return sql
-    # /loadTableFileSqlPrefix
+    # /loadTableFileSql
 
     def getZipDate(self, zip, csvFileName):
         zipDate = None
@@ -917,10 +964,11 @@ class SchemasActions():
                   "ON c.TABLE_CATALOG = t.TABLE_CATALOG " \
                   "AND c.TABLE_SCHEMA = t.TABLE_SCHEMA " \
                   "AND c.TABLE_NAME = t.TABLE_NAME " \
-                  f"WHERE t.TABLE_SCHEMA='{schemaname}' " \
-                  f"AND t.TABLE_NAME='{tablename}' " \
-                  "AND c.COLUMN_NAME='SHAPE';"
-            g = Database.readDatabaseResult(parent, cnx, sql)
+                  "WHERE t.TABLE_SCHEMA=%s " \
+                  "AND t.TABLE_NAME=%s " \
+                  "AND c.COLUMN_NAME='SHAPE'"
+            par = tuple([schemaname, tablename])
+            g = Database.readDatabaseResult(parent, cnx, sql, par)
             if g:
                 return g
         return geometry
@@ -961,27 +1009,29 @@ class SchemasActions():
                     projName = prjText[q1 + 1:q2]
                 parent.appendLog(f'    projection\t{projName} (EPSG:unknowen)')
             sql = f"SELECT SRID FROM {schemaname}.spatial_ref_sys " \
-                f"WHERE SRTEXT='{prjText}';"
-            prjId = Database.readDatabaseResult(parent, cnx, sql)
+                  "WHERE SRTEXT=%s"
+            par = tuple([prjText])
+            prjId = Database.readDatabaseResult(parent, cnx, sql, par)
             if prjId:
                 parent.appendLog('    found existing projection')
             else:
                 parent.appendLog('    insert new projection')
                 sql = "SELECT max(SRID) " \
-                    f"FROM {schemaname}.spatial_ref_sys;"
+                      f"FROM {schemaname}.spatial_ref_sys"
                 prjId = Database.readDatabaseResult(parent, cnx, sql)
                 if prjId:
                     prjId += 1
                 else:
                     prjId = 1
                 sql = f"INSERT INTO {schemaname}.spatial_ref_sys " \
-                    "(SRID, AUTH_NAME, AUTH_SRID, SRTEXT) VALUES " \
-                    f"({prjId}, NULL, NULL, '{prjText}');"
-                Database.executeSQL(parent, cnx, sql, True)
+                      "(SRID, AUTH_NAME, AUTH_SRID, SRTEXT) VALUES " \
+                      "(%s, NULL, NULL, %s)"
+                par = tuple([prjId, prjText])
+                Database.executeSQL(parent, cnx, sql, par, True)
                 Database.commit(parent, cnx)
         else:
             parent.appendLog('    proj file not found, use default projection')
-            sql = f"SELECT min(SRID) FROM {schemaname}.spatial_ref_sys;"
+            sql = f"SELECT min(SRID) FROM {schemaname}.spatial_ref_sys"
             prjId = Database.readDatabaseResult(parent, cnx, sql)
         return prjId
     # /getPrjId
@@ -992,12 +1042,13 @@ class SchemasActions():
         if dataset:
             pass
         else:
-            sql = f"DROP TABLE {schemaname}.{tablename};"
-            if Database.executeSQL(parent, cnx, sql, True):
+            sql = f"DROP TABLE {schemaname}.{tablename}"
+            if Database.executeSQL(parent, cnx, sql, silent=True):
                 sql = f"DELETE FROM {schemaname}.geometry_columns " \
-                      f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                      f"AND F_TABLE_NAME='{tablename}';"
-                Database.executeSQL(parent, cnx, sql, True)
+                      "WHERE F_TABLE_SCHEMA=%s " \
+                      "AND F_TABLE_NAME=%s"
+                par = tuple([schemaname, tablename])
+                Database.executeSQL(parent, cnx, sql, par, silent=True)
                 self.createTable(
                     parent, cnx, schemaname, tablename, fields, zipFileName)
             return True
@@ -1012,18 +1063,20 @@ class SchemasActions():
                 '    restart incomplete data load into '
                 f'{schemaname}.{tablename}')
         elif Utilities.isNewer(zipDate, schemaDate):
-            sql = f"DROP TABLE {schemaname}.{tablename};"
             parent.appendLog(
                 f'    delete old data from {schemaname}.{tablename}')
-            if Database.executeSQL(parent, cnx, sql, True):
+            sql = f"DROP TABLE {schemaname}.{tablename}"
+            if Database.executeSQL(parent, cnx, sql, silent=True):
                 sql = f"DELETE FROM {schemaname}.geometry_columns " \
-                      f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                      f"AND F_TABLE_NAME='{tablename}';"
-                Database.executeSQL(parent, cnx, sql, True)
+                      "WHERE F_TABLE_SCHEMA=%s " \
+                      "AND F_TABLE_NAME=%s"
+                par = tuple([schemaname, tablename])
+                Database.executeSQL(parent, cnx, sql, par, silent=True)
                 sql = f"DELETE FROM {schemaname}.table_datasets " \
-                      f"WHERE schemaname='{schemaname}' " \
-                      f"AND tablename='{tablename}';"
-                Database.executeSQL(parent, cnx, sql, True)
+                      "WHERE schemaname=%s " \
+                      "AND tablename=%s"
+                par = tuple([schemaname, tablename])
+                Database.executeSQL(parent, cnx, sql, par, silent=True)
                 self.createTable(
                     parent, cnx, schemaname, tablename, fields, zipFileName)
         return True
@@ -1042,8 +1095,7 @@ class SchemasActions():
                 isFirst = False
             else:
                 sql += ", "
-            sql += f"{field.fieldName} "
-            sql += f"{field.fieldType}"
+            sql += f"{field.fieldName} {field.fieldType}"
             if field.fieldWidth:
                 sql += f"({field.fieldWidth})"
             if field.fieldSrc == '1' or field.isKey:
@@ -1054,9 +1106,9 @@ class SchemasActions():
                     hasPK = True
             elif Utilities.isGeometryField(field.fieldType):
                 sql += " NOT NULL"
-        sql += ");"
+        sql += ")"
         # parent.appendLog(sql)
-        Database.executeSQL(parent, cnx, sql, True)
+        Database.executeSQL(parent, cnx, sql, silent=True)
         self.setDatasetTable(parent, cnx, schemaname, tablename, filename)
     # /createTable
 
@@ -1077,29 +1129,35 @@ class SchemasActions():
                     keyField = "OGR_FID"
             if shapeField:
                 sql = f"SELECT TYPE FROM {schemaname}.geometry_columns " \
-                    f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                    f"AND F_TABLE_NAME='{tablename}';"
-                geometryType = Database.readDatabaseResult(parent, cnx, sql)
+                      "WHERE F_TABLE_SCHEMA=%s " \
+                      "AND F_TABLE_NAME=%s"
+                par = tuple([schemaname, tablename])
+                geometryType = Database.readDatabaseResult(
+                    parent, cnx, sql, par)
                 if geometryType:
                     parent.appendLog(f'    existing geometry layer {tablename}')
                     if self.isGeometryExtra(parent, cnx, schemaname, tablename):
                         parent.appendLog('    updating geometry extents')
                         sql = f"UPDATE {schemaname}.geometry_columns " \
-                              f"SET GEOMETRY_TYPE='{geometryType}', " \
-                              f"QGIS_XMIN={extents[0]}, " \
-                              f"QGIS_YMIN={extents[1]}, " \
-                              f"QGIS_XMAX={extents[2]}, " \
-                              f"QGIS_YMAX={extents[3]}, " \
-                              f"QGIS_PKEY='{keyField}' " \
-                              f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                              f"AND F_TABLE_NAME='{tablename}';"
+                              "SET GEOMETRY_TYPE=%s, " \
+                              "QGIS_XMIN=%s, " \
+                              "QGIS_YMIN=%s, " \
+                              "QGIS_XMAX=%s, " \
+                              "QGIS_YMAX=%s, " \
+                              "QGIS_PKEY=%s " \
+                              "WHERE F_TABLE_SCHEMA=%s " \
+                              "AND F_TABLE_NAME=%s"
+                        par = tuple([schemaname, geometryType, extents[0],
+                                    extents[1], extents[2], extents[3],
+                                    keyField, schemaname, tablename])
                     else:
                         parent.appendLog('    updating geometry type')
                         sql = f"UPDATE {schemaname}.geometry_columns " \
-                              f"SET GEOMETRY_TYPE='{geometryType}' " \
-                              f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                              f"AND F_TABLE_NAME='{tablename}';"
-                    Database.executeSQL(parent, cnx, sql, True)
+                              "SET GEOMETRY_TYPE=%s " \
+                              "WHERE F_TABLE_SCHEMA=%s " \
+                              "AND F_TABLE_NAME=%s"
+                        par = tuple([geometryType, schemaname, tablename])
+                    Database.executeSQL(parent, cnx, sql, par, silent=True)
                     Database.commit(parent, cnx)
                 else:
                     parent.appendLog(f'    create geometry layer {tablename}')
@@ -1114,16 +1172,19 @@ class SchemasActions():
                               "QGIS_XMAX, QGIS_YMAX, " \
                               "QGIS_PKEY) " \
                               "VALUES (" \
-                              "NULL, " \
-                              f"'{schemaname}', " \
-                              f"'{tablename}', " \
-                              f"'{shapeField .fieldName}', 2, " \
-                              f"{prjId}, " \
-                              f"'{shapeField .fieldType}', " \
-                              f"'{shapeField .fieldType}', " \
-                              f"{extents[0]}, {extents[1]}, " \
-                              f"{extents[2]}, {extents[3]}, " \
-                              f"'{keyField}');"
+                              "NULL, %s, %s, " \
+                              "%s, 2, " \
+                              "%s, " \
+                              "'%s, " \
+                              "'%s, " \
+                              "%s, %s, %s, %s, " \
+                              "%s"
+                        par = tuple([schemaname, tablename,
+                                    shapeField.fieldName, prjId,
+                                    shapeField.fieldType, shapeField.fieldType,
+                                    extents[0], extents[1],
+                                    extents[2], extents[3],
+                                    keyField])
                     else:
                         sql = "INSERT INTO " \
                               f"{schemaname}.geometry_columns " \
@@ -1131,10 +1192,13 @@ class SchemasActions():
                               "F_TABLE_NAME, F_GEOMETRY_COLUMN, " \
                               "COORD_DIMENSION, SRID, TYPE) " \
                               "VALUES (" \
-                              f"NULL, '{schemaname}', '{tablename}', " \
-                              f"'{shapeField .fieldName}', 2, " \
-                              f"{prjId}, '{shapeField .fieldType}');"
-                    Database.executeSQL(parent, cnx, sql, True)
+                              "NULL, %s, %s, " \
+                              "%s, 2, " \
+                              "%s, %s)"
+                        par = tuple([schemaname, tablename,
+                                    shapeField.fieldName, prjId,
+                                    shapeField.fieldType])
+                    Database.executeSQL(parent, cnx, sql, par, silent=True)
                     Database.commit(parent, cnx)
             else:
                 parent.appendLog('    no geometry')
@@ -1142,37 +1206,42 @@ class SchemasActions():
 
     def updateTableGeometry(self, parent, cnx, schemaname, tablename, geometry):
         sql = f"SELECT TYPE FROM {schemaname}.geometry_columns " \
-              f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-              f"AND F_TABLE_NAME='{tablename}';"
-        result = Database.readDatabaseResult(parent, cnx, sql)
+              "WHERE F_TABLE_SCHEMA=%s " \
+              "AND F_TABLE_NAME=%s"
+        par = tuple([schemaname, tablename])
+        result = Database.readDatabaseResult(parent, cnx, sql, par)
         if result:
             if result != geometry:
                 parent.appendLog(f'    updating geometry type to {geometry}')
                 if self.isGeometryExtra(parent, cnx, schemaname, tablename):
                     sql = f"UPDATE {schemaname}.geometry_columns " \
-                          f"SET TYPE='{geometry}', " \
-                          f"GEOMETRY_TYPE='{geometry}' " \
-                          f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                          f"AND F_TABLE_NAME='{tablename}';"
+                          "SET TYPE=%s, " \
+                          "GEOMETRY_TYPE=%s " \
+                          "WHERE F_TABLE_SCHEMA=%s " \
+                          "AND F_TABLE_NAME=%s"
+                    par = tuple([geometry, geometry,
+                                 schemaname, tablename])
                 else:
                     sql = f"UPDATE {schemaname}.geometry_columns " \
-                          f"SET TYPE='{geometry}' " \
-                          f"WHERE F_TABLE_SCHEMA='{schemaname}' " \
-                          f"AND F_TABLE_NAME='{tablename}';"
-                Database.executeSQL(parent, cnx, sql, True)
+                          "SET TYPE=%s " \
+                          "WHERE F_TABLE_SCHEMA=%s " \
+                          "AND F_TABLE_NAME=%s"
+                    par = tuple([geometry, schemaname, tablename])
+                Database.executeSQL(parent, cnx, sql, par, silent=True)
                 Database.commit(parent, cnx)
         else:
             parent.appendLog(f'    missing geometry layer {tablename}')
     # /updateTableGeometry
 
     def isGeometryExtra(self, parent, cnx, schemaname, tablename):
-        sql = f"SELECT count(*) AS cnt " \
-            "FROM information_schema.COLUMNS c " \
-            f"WHERE c.TABLE_SCHEMA='{schemaname}' " \
-            f"AND c.TABLE_NAME='geometry_columns' " \
-            "AND upper(c.COLUMN_NAME) IN ('geometry_type', " \
-            "'qgis_xmin', 'qgis_ymin', 'qgis_xmax', 'qgis_ymax', 'qgis_pkey');"
-        fcnt = Database.readDatabaseResult(parent, cnx, sql)
+        sql = "SELECT count(*) AS cnt " \
+              "FROM information_schema.COLUMNS c " \
+              "WHERE c.TABLE_SCHEMA=%s " \
+              "AND c.TABLE_NAME='geometry_columns' " \
+              "AND upper(c.COLUMN_NAME) IN ('geometry_type', " \
+              "'qgis_xmin', 'qgis_ymin', 'qgis_xmax', 'qgis_ymax', 'qgis_pkey')"
+        par = tuple([schemaname])
+        fcnt = Database.readDatabaseResult(parent, cnx, sql, par)
         return (fcnt > 5)
     # /isGeometryExtra
 
@@ -1185,8 +1254,8 @@ class SchemasActions():
         if cnt == 0:
             parent.appendLog(f'    change geometry to {geotype}')
             sql = f"ALTER TABLE {schemaname}.{tablename} " \
-                  f"MODIFY SHAPE {geotype} NOT NULL;"
-            Database.executeSQL(parent, cnx, sql, True)
+                  f"MODIFY SHAPE {geotype} NOT NULL"
+            Database.executeSQL(parent, cnx, sql, silent=True)
             self.updateTableGeometry(parent, cnx,
                                      schemaname, tablename, geotype)
             return geotype
@@ -1213,17 +1282,18 @@ class SchemasActions():
                     c1 = "ST_GeomCollFromText('"
             sql = f"ALTER TABLE {schemaname}.{tablename} " \
                   "RENAME COLUMN SHAPE TO TEMP, " \
-                  f"ADD COLUMN SHAPE {geotype};"
-            Database.executeSQL(parent, cnx, sql, True)
+                  f"ADD COLUMN SHAPE {geotype}"
+            Database.executeSQL(parent, cnx, sql, silent=True)
             sql = f"UPDATE {schemaname}.{tablename} " \
                   f"SET SHAPE={c1}(concat(replace(ST_AsText(TEMP), " \
-                  f"'{geometry}', '{geotype}('), ')'));"
-            Database.executeSQL(parent, cnx, sql, True)
+                  "%s, '%s('), ')'))"
+            par = tuple([geometry, geotype])
+            Database.executeSQL(parent, cnx, sql, par, silent=True)
             Database.commit(parent, cnx)
-            sql = f"ALTER TABLE {schemaname}.{tablename} " \
-                  f"DROP COLUMN TEMP, " \
+            sql = f"ALTER TABLE {schemaname}.{schemaname} " \
+                  "DROP COLUMN TEMP, " \
                   f"MODIFY COLUMN SHAPE {geotype} NOT NULL;"
-            Database.executeSQL(parent, cnx, sql, True)
+            Database.executeSQL(parent, cnx, sql, silent=True)
             self.updateTableGeometry(parent, cnx,
                                      schemaname, tablename, geotype)
             return geotype
@@ -1248,11 +1318,11 @@ class SchemasActions():
     def featureCount(self, parent, cnx, append, schemaname, tablename, key):
         if append:
             if key:
-                k = key
+                sql = f"SELECT count({key}) FROM {schemaname}.{tablename}"
             else:
-                k = "1"
-            sql = f"SELECT count({k}) FROM {schemaname}.{tablename};"
-            cnt = Database.readDatabaseResult(parent, cnx, sql, True)
+                sql = f"SELECT count(1) FROM {schemaname}.{tablename}"
+            cnt = Database.readDatabaseResult(
+                parent, cnx, sql, silent=True)
             return int(cnt)
         return 0
     # /featureCount
@@ -1263,15 +1333,13 @@ class SchemasActions():
             if appendCnt > readCnt:
                 return True
             if key and keyValue:
-                if isinstance(keyValue, str):
-                    value = f"'{keyValue}'"
-                else:
-                    value = keyValue
                 sql = "SELECT ifnull(EXISTS(" \
                       f"SELECT 1 FROM {schemaname}.{tablename} " \
-                      f"WHERE {key}={value}" \
-                      "), 0);"
-                exist = Database.readDatabaseResult(parent, cnx, sql, True)
+                      f"WHERE {key}=%s" \
+                      "), 0)"
+                par = tuple([keyValue])
+                exist = Database.readDatabaseResult(
+                    parent, cnx, sql, par, silent=True)
                 return (exist == 1)
         return False
     # /isFeatureExist
@@ -1281,20 +1349,22 @@ class SchemasActions():
               "dataset_file, dataset_date, ifnull(dataset_cnt, 0), " \
               "dataset_load_seconds " \
               f"FROM {schemaname}.table_datasets " \
-              f"WHERE schemaname='{schemaname}' " \
-              f"AND tablename='{tablename}' LIMIT 1;"
-        datasets = Database.readDatabase(parent, cnx, sql)
+              "WHERE schemaname=%s " \
+              "AND tablename=%s LIMIT 1"
+        par = tuple([schemaname, tablename])
+        datasets = Database.readDatabase(parent, cnx, sql, par)
         if datasets:
             dataset = datasets[0]
         else:
             dataset = None
         if filename:
             sql = f"UPDATE {schemaname}.table_datasets " \
-                  f"SET dataset_file='{filename}' " \
-                  f"WHERE schemaname='{schemaname}' " \
-                  f"AND tablename='{tablename}' " \
-                  f"AND dataset_file IS NULL;"
-            Database.executeSQL(parent, cnx, sql, True)
+                  "SET dataset_file=%s " \
+                  "WHERE schemaname=%s " \
+                  "AND tablename=%s " \
+                  "AND dataset_file IS NULL;"
+            par = tuple([filename, schemaname, tablename])
+            Database.executeSQL(parent, cnx, sql, par, silent=True)
             Database.commit(parent, cnx)
         return dataset
     # /getDataset
@@ -1302,48 +1372,61 @@ class SchemasActions():
     def setDatasetTable(self, parent, cnx, schemaname, tablename,
                         filename=None, filedate=None, cnt=0, elapsed=None):
         sql = f"SELECT schemaname FROM {schemaname}.table_datasets " \
-            f"WHERE schemaname='{schemaname}' " \
-            f"AND tablename='{tablename}';"
-        result = Database.readDatabaseResult(parent, cnx, sql)
+              "WHERE schemaname=%s " \
+              "AND tablename=%s"
+        par = tuple([schemaname, tablename])
+        result = Database.readDatabaseResult(parent, cnx, sql, par)
+        pars = []
         if result:
             sql = f"UPDATE {schemaname}.table_datasets " \
-                "SET dataset_file="
+                  "SET dataset_file="
             if filename:
-                sql += f"'{filename}'"
+                sql += "%s"
+                pars.append(filename)
             else:
                 sql += "NULL"
             sql += ", dataset_date="
             if filedate:
-                sql += f"'{filedate}'"
+                sql += "%s"
+                pars.append(filedate)
             else:
                 sql += "NULL"
-            sql += f", dataset_cnt={cnt}"
+            sql += ", dataset_cnt=%s"
+            pars.append(cnt)
             if elapsed is not None:
                 t = int(elapsed.total_seconds())
-                sql += f", dataset_load_seconds={t}"
-            sql += f" WHERE schemaname='{schemaname}' " \
-                f"AND tablename='{tablename}';"
+                sql += ", dataset_load_seconds=%s"
+                pars.append(t)
+            sql += " WHERE schemaname=%s " \
+                "AND tablename=%s"
+            pars.extend(schemaname, tablename)
         else:
             sql = f"INSERT INTO {schemaname}.table_datasets " \
-                "(schemaname, tablename, " \
-                "dataset_file, dataset_date, dataset_cnt, " \
-                "dataset_load_seconds) " \
-                f"VALUES('{schemaname}', '{tablename}', "
+                  "(schemaname, tablename, " \
+                  "dataset_file, dataset_date, dataset_cnt, " \
+                  "dataset_load_seconds) " \
+                  "VALUES(%s, %s, "
+            pars.extend(schemaname, tablename)
             if filename:
-                sql += f"'{filename}', "
+                sql += "%s, "
+                pars.append(filename)
             else:
                 sql += "NULL, "
             if filedate:
-                sql += f"'{filedate}', "
+                sql += "%s, "
+                pars.append(filedate)
             else:
                 sql += "NULL, "
-            sql += f"{cnt}, "
+            sql += "%s, "
+            pars.append(cnt)
             if elapsed is not None:
                 t = int(elapsed.total_seconds())
-                sql += f", dataset_load_seconds={t}"
+                sql += ", dataset_load_seconds=%s"
+                pars.append(t)
             else:
-                sql += "NULL);"
-        Database.executeSQL(parent, cnx, sql, True)
+                sql += "NULL)"
+        par = tuple(pars)
+        Database.executeSQL(parent, cnx, sql, par, silent=True)
         Database.commit(parent, cnx)
     # /setDatasetTable
 
@@ -1351,15 +1434,16 @@ class SchemasActions():
         parent.appendLog('    drop indexes...')
         sql = "SELECT INDEX_NAME " \
               "FROM information_schema.statistics " \
-              f"WHERE TABLE_SCHEMA='{schemaname}' " \
-              f"AND TABLE_NAME='{tablename}' " \
-              f"AND INDEX_NAME!='PRIMARY' " \
-              f"AND INDEX_NAME!='UNIQUE';"
-        indexes = Database.readDatabase(parent, cnx, sql)
+              "WHERE TABLE_SCHEMA=%s " \
+              "AND TABLE_NAME=%s " \
+              "AND INDEX_NAME!='PRIMARY' " \
+              "AND INDEX_NAME!='UNIQUE'"
+        par = tuple([schemaname, tablename])
+        indexes = Database.readDatabase(parent, cnx, sql, par)
         for index in indexes:
             sql = f"ALTER TABLE {schemaname}.{tablename} " \
-                  f"DROP INDEX {index[0]};"
-            Database.executeSQL(parent, cnx, sql, True)
+                  f"DROP INDEX {index[0]}"
+            Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog('    dropped indexes')
     # /dropIndexes
 
@@ -1373,7 +1457,7 @@ class SchemasActions():
               "ON c.TABLE_CATALOG = t.TABLE_CATALOG " \
               "AND c.TABLE_SCHEMA = t.TABLE_SCHEMA " \
               "AND c.TABLE_NAME = t.TABLE_NAME\n" \
-              f"WHERE t.TABLE_SCHEMA = '{schemaname}' " \
+              "WHERE t.TABLE_SCHEMA = %s " \
               "AND t.TABLE_TYPE='BASE TABLE' " \
               "AND t.TABLE_NAME not in ('geometry_columns', " \
               "'apatial_ref_sys', 'table_datasets')\n" \
@@ -1390,12 +1474,13 @@ class SchemasActions():
               "AND c.TABLE_SCHEMA = s.TABLE_SCHEMA " \
               "AND c.TABLE_NAME = s.TABLE_NAME " \
               "AND c.COLUMN_NAME = s.COLUMN_NAME\n" \
-              f"WHERE t.TABLE_SCHEMA = '{schemaname}' " \
+              "WHERE t.TABLE_SCHEMA = %s " \
               "AND t.TABLE_TYPE='BASE TABLE' " \
               "AND t.TABLE_NAME not in ('geometry_columns', " \
               "'apatial_ref_sys', 'table_datasets')\n" \
-              "ORDER BY TABLE_NAME ASC, ORDINAL_POSITION ASC;"
-        fields = Database.readDatabase(parent, cnx, sql)
+              "ORDER BY TABLE_NAME ASC, ORDINAL_POSITION ASC"
+        par = tuple([schemaname, schemaname])
+        fields = Database.readDatabase(parent, cnx, sql, par)
         for field in fields:
             if Utilities.isGeometryField(field[3]):
                 log = '    ' \
@@ -1405,14 +1490,14 @@ class SchemasActions():
                 parent.appendLog(log)
                 sql = f"ALTER TABLE {schemaname}.{field[0]} " \
                       f"ADD SPATIAL INDEX ({field[1]});"
-                Database.executeSQL(parent, cnx, sql, True)
+                Database.executeSQL(parent, cnx, sql, silent=True)
             elif Utilities.isCreateFieldIndex(field[1], field[3]):
                 parent.appendLog(f'    create index {field[1].ljust(35)}'
                                  f'  on {field[0].ljust(40)}'
                                  f'  {Utilities.getNowString()}...')
                 sql = f"ALTER TABLE {schemaname}.{field[0]} " \
-                      f"ADD INDEX ({field[1]});"
-                Database.executeSQL(parent, cnx, sql, True)
+                      f"ADD INDEX ({field[1]})"
+                Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog(f'Created indexes in {schemaname}')
         parent.unsetCursor()
     # /createMissingIndexes
@@ -1424,8 +1509,8 @@ class SchemasActions():
                 parent.appendLog('    create feature shape index '
                                  f'\t{Utilities.getNowString()}...')
                 sql = f"ALTER TABLE {schemaname}.{tablename} " \
-                      f"ADD SPATIAL INDEX ({field.fieldName});"
-                Database.executeSQL(parent, cnx, sql, True)
+                      f"ADD SPATIAL INDEX ({field.fieldName})"
+                Database.executeSQL(parent, cnx, sql, silent=True)
             elif Utilities.isCreateFieldIndex(
                     field.fieldName,
                     field.fieldType,
@@ -1434,8 +1519,8 @@ class SchemasActions():
                 parent.appendLog(f'    create {field.fieldName} index '
                                  f'\t{Utilities.getNowString()}...')
                 sql = f"ALTER TABLE {schemaname}.{tablename} " \
-                      f"ADD INDEX ({field.fieldName});"
-                Database.executeSQL(parent, cnx, sql, True)
+                      f"ADD INDEX ({field.fieldName})"
+                Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog('    created indexes')
     # /createIndexes
 

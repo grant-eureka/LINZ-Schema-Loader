@@ -116,7 +116,7 @@ class SourceConfig():
     """ Class to store layer database source connection details.
     """
     """'Type' definition for database server connections.
-    To avoid warning of "Possible hardcoded password: 'None'":
+    To avoid warning of "Possible hardcoded ?: 'None'":
         'username' is translated to 'u'
         'password' is translated to 'p'
     """
@@ -302,20 +302,36 @@ class Database():
 
     def isSchemaExist(parent, cnx, schemaname):
         sql = "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA " \
-              f"WHERE SCHEMA_NAME='{schemaname}';"
-        result = Database.readDatabaseResult(parent, cnx, sql)
+              "WHERE lower(SCHEMA_NAME)=lower(%s)"
+        par = tuple([schemaname])
+        parent.appendLog(f'{sql}\n{par}')
+        result = Database.readDatabaseResult(parent, cnx, sql, par)
         if result is None:
             return False
         return (schemaname == result)
+    # /isSchemaExist
+
+    def isGISSchemaExist(parent, cnx, schemaname):
+        if Database.isSchemaExist(parent, cnx, schemaname):
+            sql = "SELECT COUNT(*) FROM information_schema.TABLES " \
+                  "WHERE lower(TABLE_SCHEMA)=lower(%s) " \
+                  "AND TABLE_NAME IN " \
+                  "('geometry_columns', 'spatial_ref_sys', 'table_datasets')"
+            par = tuple([schemaname])
+            result = Database.readDatabaseResult(parent, cnx, sql, par)
+            if result > 2:
+                return True
+        return False
     # /isSchemaExist
 
     """
     def isTableExist(self, schemaname, tablename):
         sql = "SELECT t.TABLE_NAME " \
             "FROM information_schema.TABLES t "
-        sql += f"WHERE t.TABLE_SCHEMA='{schemaname}' "
-        sql += f"AND t.TABLE_NAME='{tablename}';"
-        result = Database.readDatabaseResult(self, self.cnx, sql)
+        sql += "WHERE t.TABLE_SCHEMA=%s "
+        sql += "AND t.TABLE_NAME=%s"
+        par = tuple([schemaname, tablename])
+        result = Database.readDatabaseResult(self, self.cnx, sql, par)
         if result:
             if result == tablename:
                 return True
@@ -328,9 +344,10 @@ class Database():
         """
         sql = "SELECT count(TABLE_NAME) " \
               "FROM information_schema.TABLES " \
-              f"WHERE TABLE_SCHEMA='{schemaname}' "\
-              f"AND TABLE_NAME='{tablename}';"
-        exist = Database.readDatabaseResult(parent, cnx, sql, True)
+              "WHERE TABLE_SCHEMA=%s "\
+              "AND TABLE_NAME=%s"
+        par = tuple([schemaname, tablename])
+        exist = Database.readDatabaseResult(parent, cnx, sql, par, silent=True)
         if exist is None:
             return False
         return (exist > 0)
@@ -340,33 +357,45 @@ class Database():
         """Test if any rows exist in table.
         """
         sql = "SELECT ifnull(EXISTS(" \
-              f"SELECT 1 FROM {schemaname}.{tablename}), 0);"
-        exist = Database.readDatabaseResult(parent, cnx, sql, True)
+              f"SELECT 1 FROM {schemaname}.{tablename}), 0)"
+        exist = Database.readDatabaseResult(parent, cnx, sql, silent=True)
         if exist is None:
             return False
         return (exist == 1)
     # /isDataExist
 
-    def readDatabaseResult(parent, cnx, sql, silent=False):
-        """Read result from MySQL/MariaDB database server.
+    def readDatabaseResult(parent, cnx, sql, parameters=None, silent=False):
+        """Read single result from MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :param cnx: Database connection.
+        :type cnx: SourceConfig
+
+        :param sql: SQL query statement.
+        :type sql: str
+
+        :param parameters: tuple of parameter values.
+        :type parameters: tuple
+
+        :returns:Value of first field in first result found.
+        :rtype: object
         """
         value = None
         try:
-            if HAS_MYSQL:
-                cnx.query(f"""{sql}""")
-                rows = cnx.store_result()
-                results = rows.fetch_row(1, 1)
-                for result in results:
-                    value = result[0]
-                # print(f'[0] : {value}')
+            cursor = cnx.cursor()
+            if parameters:
+                cursor.execute(sql, parameters)
             else:
-                cur = cnx.cursor()
-                cur.execute(sql)
-                for result in cur:
-                    value = result[0]
-                cur.close()
-                # print(f'[0] : {value}')
-        except (mariadb.Error, mariadb.ProgrammingError) as err:
+                cursor.execute(sql)
+            result = cursor.fetchone()
+            if result is None:
+                return None
+            value = result[0]
+            cursor.close()
+        except (mariadb.Error,
+                mariadb.ProgrammingError,
+                mysql_connect.Error) as err:
             msg = "Failed to read from MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
             if silent:
@@ -378,6 +407,7 @@ class Database():
                 MessageBoxes.WARNING,
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
+        """
         except (mysql_connect.Error) as err:
             msg = "Failed to read from MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
@@ -390,12 +420,12 @@ class Database():
                 MessageBoxes.WARNING,
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
+        """
         return value
     # /readDatabaseResult
 
-    def readDatabase(parent, cnx, sql, silent=False):
+    def readDatabase(parent, cnx, sql, parameters=None, silent=False):
         """Read data from MySQL/MariaDB database server.
-        Calls readDatabase for each supported database.
         :param parent: Parent application window or dialog.
         :type parent: QtWidget
 
@@ -404,11 +434,27 @@ class Database():
 
         :param sql: SQL query statement.
         :type sql: str
+
+        :param parameters: tuple of parameter values.
+        :type parameters: tuple
+
+        :returns:Values of all results found.
+        :rtype: tuple(tuple())
         """
 
         try:
+            # parent.appendLog(f"readDatabase:\n{sql}")  # debug
+            cursor = cnx.cursor()
+            if parameters:
+                cursor.execute(sql, parameters)
+            else:
+                cursor.execute(sql)
+            results = cursor.fetchall()
+            cursor.close()
+            return results
+            """
             if HAS_MYSQL:
-                cnx.query(f"""{sql}""")
+                cnx.query(f"\"{sql}\"")
                 rows = cnx.store_result()
                 results = rows.fetch_row(rows.rowcount, 1)
                 return results
@@ -418,7 +464,9 @@ class Database():
                 results = cur.fetchall()
                 cur.close()
                 return results
-        except (mariadb.Error, mariadb.ProgrammingError) as err:
+            """
+        except (mariadb.Error, mariadb.ProgrammingError,
+                mysql_connect.Error) as err:
             msg = "Failed to read from MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
             if silent:
@@ -430,6 +478,7 @@ class Database():
                 MessageBoxes.WARNING,
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
+        """
         except (mysql_connect.Error) as err:
             msg = "Failed to read from MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
@@ -442,27 +491,112 @@ class Database():
                 MessageBoxes.WARNING,
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
+        """
         return None
     # /readDatabase
 
-    def executeSQL(parent, cnx, sql, silent=False, logOnly=True):
+    def openSqlCursor(parent, cnx, logOnly=True):
+        """Build SQL prepared statement cusor on MySQL/MariaDB database server.
+        """
+        try:
+            cursor = cnx.cursor(prepared=True)
+        except (mariadb.Error,
+                mariadb.ProgrammingError,
+                mariadb.OperationalError,
+                mysql_error.Error) as err:
+            msg = "Failed to open SQL cursor on " \
+                  "MariaDB/MySQL database:"
+            parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
+            if logOnly:
+                pass
+            else:
+                MessageBoxes.messageBox(
+                    parent,
+                    MessageBoxes.WARNING,
+                    Utilities.getApptitle(parent),
+                    f'{msg}\nSQLERR: {err.errno} {err.msg}')
+            return None
+        return cursor
+    # /buildSqlCursor
+
+    def executeSqlCursor(parent, cursor, sql, parameters=None, logOnly=True):
+        """Build SQL prepared statement cusor on MySQL/MariaDB database server.
+        """
+        try:
+            if parameters:
+                cursor.execute(sql, parameters)
+            else:
+                cursor.execute(sql)
+        except (mariadb.IntegrityError,
+                mysql_error.IntegrityError) as err:
+            # parent.appendLog(f'IntegrityError\n{err}\n{sql}')  # debug
+            if err:
+                if f'{err}'.upper().find("DUPLICATE") < 0:
+                    errno = err.errno
+                else:
+                    errno = ER_DUP_ENTRY
+            else:
+                errno = 0
+            msg = "Failed to execute SQL statement on " \
+                "MariaDB/MySQL database:"
+            parent.appendLog(f'{msg}\nSQLERR: {errno} {err.msg}')
+            # parent.appendLog(f'{sql}')
+            return False
+        except (mariadb.Error,
+                mariadb.ProgrammingError,
+                mariadb.OperationalError,
+                mysql_error.Error) as err:
+            msg = "Failed to execute SQL statement on " \
+                  "MariaDB/MySQL database:"
+            parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
+            # parent.appendLog(f'{sql}')
+            return False
+        return True
+    # /executeSqlCursor
+
+    def closeSqlCursor(parent, cursor, logOnly=True):
+        """Build SQL prepared statement cusor on MySQL/MariaDB database server.
+        """
+        try:
+            if cursor:
+                cursor.close()
+        except (mariadb.Error,
+                mariadb.ProgrammingError,
+                mariadb.OperationalError,
+                mysql_error.Error) as err:
+            msg = "Failed to close SQL cursor on " \
+                  "MariaDB/MySQL database:"
+            parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
+            # parent.appendLog(f'{sql}')
+            if logOnly:
+                pass
+            else:
+                MessageBoxes.messageBox(
+                    parent,
+                    MessageBoxes.WARNING,
+                    Utilities.getApptitle(parent),
+                    f'{msg}\nSQLERR: {err.errno} {err.msg}')
+    # /closeSqlCursor
+
+    def executeSQL(parent, cnx, sql, parameters=None,
+                   silent=False, logOnly=True):
         """Execute SQL statement on MySQL/MariaDB database server.
         """
         try:
-            if HAS_MYSQL:
-                cnx.query(f"""{sql}""")
+            cursor = cnx.cursor()
+            parent.appendLog(f"executeSQL :\n{sql}\n{parameters}")
+            if parameters:
+                cursor.execute(sql, parameters)
             else:
-                cur = cnx.cursor()
-                cur.execute(sql)
-                cur.close()
+                cursor.execute(sql)
+            cursor.close()
             if silent:
                 pass
             else:
                 parent.appendLog('ok')
-            success = True
         except (mariadb.IntegrityError,
                 mysql_error.IntegrityError) as err:
-            # print(f'IntegrityError\n{err}\n{sql}')
+            # parent.appendLog(f'IntegrityError\n{err}\n{sql}')  # debug
             if err:
                 if f'{err}'.upper().find("DUPLICATE") < 0:
                     errno = err.errno
@@ -484,7 +618,7 @@ class Database():
                     MessageBoxes.WARNING,
                     Utilities.getApptitle(parent),
                     f'{msg}\nSQLERR: {errno} {err.msg}')
-            success = False
+            return False
         except (mariadb.Error,
                 mariadb.ProgrammingError,
                 mariadb.OperationalError,
@@ -493,7 +627,6 @@ class Database():
                 raise SQLError(err.sqlstate, err.msg, err.errno, sql)
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
-            # print(f'{msg}\n{err}\n{sql}')
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
             # parent.appendLog(f'{sql}')
             if logOnly:
@@ -504,28 +637,28 @@ class Database():
                     MessageBoxes.WARNING,
                     Utilities.getApptitle(parent),
                     f'{msg}\nSQLERR: {err.errno} {err.msg}')
-            success = False
-        return success
+            return False
+        return True
     # /executeSQL
 
-    def executeSQLwithWarnings(parent, cnx, sql):
+    def executeSQLwithWarnings(parent, cnx, sql, parameters=None):
         """Execute SQL statement on MySQL/MariaDB database server.
         """
         try:
-            if HAS_MYSQL:
-                cnx.query(f"""{sql}""")
+            cursor = cnx.cursor()
+            if parameters:
+                cursor.execute(sql, parameters)
             else:
-                cur = cnx.cursor()
-                cur.execute(sql)
-                cur.close()
-            sqlW = "SHOW WARNINGS;"
-            warnings = Database.readDatabase(parent, cnx, sqlW, True)
+                cursor.execute(sql)
+            cursor.close()
+            sqlW = "SHOW WARNINGS"
+            warnings = Database.readDatabase(
+                parent, cnx, sqlW, silent=True)
             if warnings:
                 for w in warnings:
                     parent.appendLog(f"{w}")
             else:
                 parent.appendLog("ok")
-            success = True
         except (mariadb.IntegrityError,
                 mysql_error.IntegrityError) as err:
             if err:
@@ -539,29 +672,28 @@ class Database():
                 "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err.sqlstate}: {errno} {err.msg}')
             # parent.appendLog(f'{sql}')
-            success = False
+            return False
         except (mariadb.Error,
                 mariadb.ProgrammingError,
                 mysql_error.Error) as err:
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
-            # print(f'{msg}\n{err}\n{sql}')
             parent.appendLog(f'{msg}\n{err.sqlstate}: {err.errno} {err.msg}')
             # parent.appendLog(f'{sql}')
-            success = False
-        return success
+            return False
+        return True
     # /executeSQLwithWarnings
 
     def commit(parent, cnx):
         """Commit database changes.
         """
-        return Database.executeSQL(parent, cnx, 'COMMIT;', True)
+        return Database.executeSQL(parent, cnx, 'COMMIT', silent=True)
     # /commit
 
     def rollback(parent, cnx):
         """Commit database changes.
         """
-        return Database.executeSQL(parent, cnx, 'ROLLBACK;', True)
+        return Database.executeSQL(parent, cnx, 'ROLLBACK', silent=True)
     # /rollback
 
     def connectDatabase(parent, sourceConfig):
@@ -621,7 +753,7 @@ class Database():
             return None
         if cnx:  # timeout after 24hours
             sql = "SET SESSION wait_timeout=86400;"
-            Database.executeSQL(parent, cnx, sql, False)
+            Database.executeSQL(parent, cnx, sql, silent=True)
         return cnx
     # /connectDatabase
 
@@ -635,8 +767,9 @@ class Database():
     def getHostDB(parent, cnx):
         if cnx:
             try:
-                sql = "select @@hostname;"
-                host = Database.readDatabaseResult(parent, cnx, sql, True)
+                sql = "select @@hostname"
+                host = Database.readDatabaseResult(
+                    parent, cnx, sql, silent=True)
                 return host
             except ():
                 return None
@@ -646,8 +779,9 @@ class Database():
     def getDBVersion(parent, cnx):
         if cnx:
             try:
-                sql = "select version();"
-                db = Database.readDatabaseResult(parent, cnx, sql, True)
+                sql = "select version()"
+                db = Database.readDatabaseResult(
+                    parent, cnx, sql, silent=True)
                 return db
             except ():
                 return None
@@ -657,37 +791,41 @@ class Database():
     def getUsername(parent, cnx):
         if cnx:
             try:
-                sql = "SELECT SUBSTRING_INDEX(user(), '@', 1);"
-                user = Database.readDatabaseResult(parent, cnx, sql, True)
+                sql = "SELECT SUBSTRING_INDEX(user(), '@', 1)"
+                user = Database.readDatabaseResult(
+                    parent, cnx, sql, silent=True)
                 return user
             except ():
                 return None
         return None
     # /getUsername
 
-    def getTables(parent, cnx, schema):
+    def getTables(parent, cnx, schemaname):
         if cnx:
             sql = "SELECT table_name " \
                 "FROM INFORMATION_SCHEMA.TABLES " \
-                f"WHERE TABLE_SCHEMA='{schema}' " \
+                "WHERE TABLE_SCHEMA=%s " \
                 "AND table_type ='BASE TABLE' " \
                 "AND table_name !='geometry_columns' " \
                 "AND table_name !='spatial_ref_sys' " \
                 "AND table_name !='table_datasets' " \
-                "order by table_name asc;"
-            tables = Database.readDatabase(parent, cnx, sql)
+                "order by table_name asc"
+            par = tuple([schemaname])
+            tables = Database.readDatabase(parent, cnx, sql, par)
             return tables
         return None
     # /getTables
 
-    def getTableMetadataCount(parent, cnx, schema, tablename):
+    def getTableMetadataCount(parent, cnx, schemaname, tablename):
         if cnx:
             try:
                 sql = "SELECT ifnull(table_rows, -1) " \
                       "FROM INFORMATION_SCHEMA.TABLES " \
-                      f"WHERE TABLE_SCHEMA='{schema}' " \
-                      f"AND table_name='{tablename}';"
-                cnt = Database.readDatabaseResult(parent, cnx, sql, True)
+                      "WHERE TABLE_SCHEMA=%s " \
+                      "AND table_name=%s"
+                par = tuple([schemaname, tablename])
+                cnt = Database.readDatabaseResult(
+                    parent, cnx, sql, par, silent=True)
                 if cnt is None:
                     return -1
                 return cnt
@@ -700,7 +838,8 @@ class Database():
         if cnx:
             try:
                 sql = "select @@hostname"
-                host = Database.readDatabaseResult(parent, cnx, sql, True)
+                host = Database.readDatabaseResult(
+                    parent, cnx, sql, silent=True)
                 local = host == "localhost" \
                     or host == socket.gethostname() \
                     or host == socket.gethostbyname(socket.gethostname()) \

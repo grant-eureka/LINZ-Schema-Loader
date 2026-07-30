@@ -14,6 +14,7 @@ about=QGIS Plugin/Standalone App to manage a local MariaDB/MySQL database with N
   Ability to create QGIS vector layers of the imported data. Options to define known relationships between tables and default symbology and labels for the map layers.
   A default New Zealand topographic style database is provided that can be loaded into a QGIS project and used to style topographical features.
   Unlike the "LINZ Data Importer" and "Koordinates" plugins, LINZ Schema Loader loads exported LINZ data directly into a database much more reliably.
+  LINZ Schema Loader is aimed for Database/GIS administrators and users wishing to build a mapping system for primarily New Zealand data.
   Requires Python modules for database access (eg. mariadb or MySQLdb)
 
 author=Grant Pearson, Eureka Technology Limited

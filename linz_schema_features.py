@@ -281,7 +281,7 @@ class FeaturesActions():
               " on s.srid=g.srid " \
               "group by g.srid, s.srtext " \
               "order by cnt desc " \
-              "limit 1;"
+              "limit 1"
         crss = Database.readDatabase(parent, cnx, sql)
         lcrs = None
         for crs in crss:
@@ -298,9 +298,10 @@ class FeaturesActions():
               f"from {schemaname}.geometry_columns as g " \
               f"inner join {schemaname}.spatial_ref_sys as s" \
               " on s.srid=g.srid " \
-              f"where g.f_table_schema='{schemaname}' " \
-              f"and g.f_table_name='{tablename}';"
-        crss = Database.readDatabase(parent, cnx, sql)
+              "where g.f_table_schema=%s " \
+              "and g.f_table_name=%s"
+        par = tuple([schemaname, tablename])
+        crss = Database.readDatabase(parent, cnx, sql, par)
         lcrs = None
         for crs in crss:
             lcrs = QgsCoordinateReferenceSystem(crs[1])
@@ -371,13 +372,14 @@ class FeaturesActions():
               "ON c.TABLE_CATALOG = t.TABLE_CATALOG " \
               "AND c.TABLE_SCHEMA = t.TABLE_SCHEMA " \
               "AND c.TABLE_NAME = t.TABLE_NAME " \
-              f"where t.TABLE_SCHEMA='{schemaname}' " \
+              "where t.TABLE_SCHEMA=%s " \
               "AND t.table_name !='geometry_columns' " \
               "AND t.table_name !='spatial_ref_sys' " \
               "AND t.table_name !='table_datasets' " \
               "group by t.table_type, t.table_name " \
               "order by geometries desc, t.table_type asc, t.TABLE_NAME asc;"
-        tables = Database.readDatabase(parent, cnx, sql)
+        par = tuple([schemaname])
+        tables = Database.readDatabase(parent, cnx, sql, par)
         return tables
     # /getTables
 
@@ -840,7 +842,8 @@ class FeaturesActions():
                         if os.path.isfile(stylePath) \
                            and FeaturesActions.isBestStyleFile(item, nameList):
                             (p, ext) = os.path.splitext(item)
-                            if (ext == '.qml' or ext == '.xml') and p.find('.') < 0:
+                            if (ext == '.qml' or ext == '.xml') \
+                               and p.find('.') < 0:
                                 styleFile = open(stylePath, 'r')
                                 xmlText = styleFile.read()
                                 styleFile.close()
