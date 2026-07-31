@@ -143,6 +143,10 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         self.setWindowIcon(icon)
         self.connectSignalSlots()
         self.setStyleSheet(Utilities.stylesheet())
+        statusStyle = u"color: rgb(140, 70, 0);"
+        self.ui.layerLabel.setStyleSheet(statusStyle)
+        self.ui.progressLabel.setStyleSheet(statusStyle)
+        self.ui.RemainderLabel.setStyleSheet(statusStyle)
         # save QMessageBox standard buttons to use in other dialogs
         self.msgBox = QMessageBox()
         self.msgBox.setStandardButtons(
@@ -710,10 +714,10 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /selectSchema
 
     def getGISschemas(self):
-        sql = "SELECT s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME) " \
-              "FROM information_schema.TABLES t " \
+        sql = "SELECT s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME)\n" \
+              "FROM information_schema.TABLES t\n" \
               "INNER JOIN information_schema.schemata s " \
-              "ON t.TABLE_SCHEMA=s.SCHEMA_NAME " \
+              "ON t.TABLE_SCHEMA=s.SCHEMA_NAME\n" \
               "WHERE (s.SCHEMA_NAME like '%gis%' " \
               " OR s.SCHEMA_NAME like '%geo%' " \
               " OR lower(t.TABLE_NAME) in " \
@@ -724,8 +728,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         sql += \
             "'information_schema', 'performance_schema', 'sys', " \
             "'mysql', 'bin_log') " \
-            "GROUP BY s.SCHEMA_NAME, s.SCHEMA_COMMENT " \
-            "ORDER BY count(t.TABLE_NAME) desc, s.SCHEMA_NAME asc"
+            "\nGROUP BY s.SCHEMA_NAME, s.SCHEMA_COMMENT " \
+            "\nORDER BY count(t.TABLE_NAME) desc, s.SCHEMA_NAME asc"
         s = []
         for schema in SCHEMAS:
             s.append(schema[0])
@@ -775,18 +779,18 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /readStatus
 
     def loadDatasetTable(self, schemaname):
-        sql = f"INSERT INTO {schemaname}.table_datasets " \
-              "(schemaname, tablename, dataset_cnt) " \
+        sql = f"INSERT INTO {schemaname}.table_datasets\n" \
+              "(schemaname, tablename, dataset_cnt)\n" \
               "SELECT " \
-              "t.TABLE_SCHEMA, t.TABLE_NAME, 0 " \
-              "FROM information_schema.TABLES t " \
+              "t.TABLE_SCHEMA, t.TABLE_NAME, 0\n" \
+              "FROM information_schema.TABLES t\n" \
               "WHERE " \
               "t.TABLE_SCHEMA = %s " \
               "AND t.TABLE_NAME NOT IN " \
               "('geometry_columns', 'spatial_ref_sys', 'table_datasets') " \
-              "EXCEPT " \
-              "SELECT d.schemaname, d.tablename, 0 " \
-              f"FROM {schemaname}.table_datasets d " \
+              "\nEXCEPT\n" \
+              "SELECT d.schemaname, d.tablename, 0\n" \
+              f"FROM {schemaname}.table_datasets d\n" \
               "WHERE d.schemaname=%s"
         par = tuple([schemaname, schemaname])
         Database.executeSQL(self, self.cnx, sql, par, silent=True)
@@ -796,7 +800,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     def clearDatasetTable(self, schemaname, tablename=None):
         if schemaname:
             pars = [schemaname]
-            sql = f"DELETE FROM {schemaname}.table_datasets " \
+            sql = f"DELETE FROM {schemaname}.table_datasets\n" \
                   "WHERE schemaname=%s"
             if tablename:
                 sql += " AND tablename=%s"
@@ -804,7 +808,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             par = tuple(pars)
             Database.executeSQL(self, self.cnx, sql, par)
             pars = [schemaname]
-            sql = f"DELETE FROM {schemaname}.geometry_columns " \
+            sql = f"DELETE FROM {schemaname}.geometry_columns\n" \
                   "WHERE F_TABLE_SCHEMA=%s"
             if tablename:
                 sql += " AND F_TABLE_NAME=%s"
@@ -821,17 +825,17 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             "c.COLUMN_TYPE AS COLUMN_TYPE, " \
             "if(c.COLUMN_KEY='PRI','Primary Key', " \
             "if(c.COLUMN_KEY='UNI','Unique','')) AS COLUMN_KEY, " \
-            "c.IS_NULLABLE AS IS_NULLABLE " \
+            "c.IS_NULLABLE AS IS_NULLABLE\n" \
             "FROM " \
-            "information_schema.COLUMNS c " \
+            "information_schema.COLUMNS c\n" \
             "INNER JOIN information_schema.TABLES t " \
             "ON c.TABLE_CATALOG = t.TABLE_CATALOG " \
             "AND c.TABLE_SCHEMA = t.TABLE_SCHEMA " \
-            "AND c.TABLE_NAME = t.TABLE_NAME " \
+            "AND c.TABLE_NAME = t.TABLE_NAME\n" \
             "WHERE " \
             "t.TABLE_SCHEMA=%s " \
             "AND t.TABLE_NAME=%s " \
-            "ORDER BY c.ORDINAL_POSITION ASC"
+            "\nORDER BY c.ORDINAL_POSITION ASC"
         par = tuple([schemaname, tablename])
         rows = Database.readDatabase(self, self.cnx, sql, par)
         tableDef = None

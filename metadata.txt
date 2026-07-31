@@ -25,6 +25,7 @@ repository=https://plugins.qgis.org/
 
 changelog=
   1.06.04
+    Security update to prevent SQL Injection attacks with Python.
   1.06.03
     Release to QGIS plugin repository.
     Updates to relationships and views scripts.

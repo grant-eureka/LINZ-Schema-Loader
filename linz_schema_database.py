@@ -301,10 +301,9 @@ class Database():
     # /convertFieldType
 
     def isSchemaExist(parent, cnx, schemaname):
-        sql = "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA " \
+        sql = "SELECT SCHEMA_NAME\nFROM information_schema.SCHEMATA\n" \
               "WHERE lower(SCHEMA_NAME)=lower(%s)"
         par = tuple([schemaname])
-        parent.appendLog(f'{sql}\n{par}')
         result = Database.readDatabaseResult(parent, cnx, sql, par)
         if result is None:
             return False
@@ -313,7 +312,7 @@ class Database():
 
     def isGISSchemaExist(parent, cnx, schemaname):
         if Database.isSchemaExist(parent, cnx, schemaname):
-            sql = "SELECT COUNT(*) FROM information_schema.TABLES " \
+            sql = "SELECT COUNT(*)\nFROM information_schema.TABLES\n" \
                   "WHERE lower(TABLE_SCHEMA)=lower(%s) " \
                   "AND TABLE_NAME IN " \
                   "('geometry_columns', 'spatial_ref_sys', 'table_datasets')"
@@ -326,10 +325,10 @@ class Database():
 
     """
     def isTableExist(self, schemaname, tablename):
-        sql = "SELECT t.TABLE_NAME " \
-            "FROM information_schema.TABLES t "
-        sql += "WHERE t.TABLE_SCHEMA=%s "
-        sql += "AND t.TABLE_NAME=%s"
+        sql = "SELECT t.TABLE_NAME\n" \
+              "FROM information_schema.TABLES t\n" \
+              "WHERE t.TABLE_SCHEMA=%s " \
+              "AND t.TABLE_NAME=%s"
         par = tuple([schemaname, tablename])
         result = Database.readDatabaseResult(self, self.cnx, sql, par)
         if result:
@@ -342,8 +341,8 @@ class Database():
     def isTableExist(parent, cnx, schemaname, tablename):
         """Test if table exists.
         """
-        sql = "SELECT count(TABLE_NAME) " \
-              "FROM information_schema.TABLES " \
+        sql = "SELECT count(TABLE_NAME)\n" \
+              "FROM information_schema.TABLES\n" \
               "WHERE TABLE_SCHEMA=%s "\
               "AND TABLE_NAME=%s"
         par = tuple([schemaname, tablename])
@@ -401,7 +400,7 @@ class Database():
             if silent:
                 pass
             else:
-                parent.appendLog(f'{sql}')
+                parent.appendLog(f'{sql}\n{parameters}')  # debug
             MessageBoxes.messageBox(
                 parent,
                 MessageBoxes.WARNING,
@@ -414,7 +413,7 @@ class Database():
             if silent:
                 pass
             else:
-                parent.appendLog(f'{sql}')
+                parent.appendLog(f'{sql}\n{parameters}')  # debug
             MessageBoxes.messageBox(
                 parent,
                 MessageBoxes.WARNING,
@@ -472,7 +471,7 @@ class Database():
             if silent:
                 pass
             else:
-                parent.appendLog(f'{sql}')
+                parent.appendLog(f'{sql}\n{parameters}')  # debug
             MessageBoxes.messageBox(
                 parent,
                 MessageBoxes.WARNING,
@@ -485,7 +484,7 @@ class Database():
             if silent:
                 pass
             else:
-                parent.appendLog(f'{sql}')
+                parent.appendLog(f'{sql}\n{parameters}')  # debug
             MessageBoxes.messageBox(
                 parent,
                 MessageBoxes.WARNING,
@@ -529,7 +528,8 @@ class Database():
                 cursor.execute(sql)
         except (mariadb.IntegrityError,
                 mysql_error.IntegrityError) as err:
-            # parent.appendLog(f'IntegrityError\n{err}\n{sql}')  # debug
+            # parent.appendLog(
+            #     f'IntegrityError\n{err}\n{sql}\n{oarameters}')  # debug
             if err:
                 if f'{err}'.upper().find("DUPLICATE") < 0:
                     errno = err.errno
@@ -540,7 +540,8 @@ class Database():
             msg = "Failed to execute SQL statement on " \
                 "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
+            # parent.appendLog(
+            #         f"executeSqlCursor:\n{sql}\n\t{parameters}")  # debug
             return False
         except (mariadb.Error,
                 mariadb.ProgrammingError,
@@ -549,7 +550,8 @@ class Database():
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
+            parent.appendLog(
+                    f"executeSqlCursor:\n{sql}\n\t{parameters}")  # debug
             return False
         return True
     # /executeSqlCursor
@@ -567,7 +569,6 @@ class Database():
             msg = "Failed to close SQL cursor on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
             if logOnly:
                 pass
             else:
@@ -584,7 +585,7 @@ class Database():
         """
         try:
             cursor = cnx.cursor()
-            parent.appendLog(f"executeSQL :\n{sql}\n{parameters}")
+            # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
             if parameters:
                 cursor.execute(sql, parameters)
             else:
@@ -596,7 +597,8 @@ class Database():
                 parent.appendLog('ok')
         except (mariadb.IntegrityError,
                 mysql_error.IntegrityError) as err:
-            # parent.appendLog(f'IntegrityError\n{err}\n{sql}')  # debug
+            # parent.appendLog(
+            #     f'IntegrityError\n{err}\n{sql}\n{parameters}')  # debug
             if err:
                 if f'{err}'.upper().find("DUPLICATE") < 0:
                     errno = err.errno
@@ -609,7 +611,7 @@ class Database():
             msg = "Failed to execute SQL statement on " \
                 "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
+            # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
             if logOnly:
                 pass
             else:
@@ -619,8 +621,23 @@ class Database():
                     Utilities.getApptitle(parent),
                     f'{msg}\nSQLERR: {errno} {err.msg}')
             return False
+        except mariadb.ProgrammingError as err:
+            if silent:
+                raise SQLError(None, err, 0, sql)
+            msg = "Failed to execute SQL statement on " \
+                  "MariaDB/MySQL database:"
+            parent.appendLog(f'{msg}\nSQLERR: {err}')
+            # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
+            if logOnly:
+                pass
+            else:
+                MessageBoxes.messageBox(
+                    parent,
+                    MessageBoxes.WARNING,
+                    Utilities.getApptitle(parent),
+                    f'{msg}\nSQLERR: {err}')
+            return False
         except (mariadb.Error,
-                mariadb.ProgrammingError,
                 mariadb.OperationalError,
                 mysql_error.Error) as err:
             if silent:
@@ -628,7 +645,7 @@ class Database():
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
+            parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
             if logOnly:
                 pass
             else:
@@ -671,15 +688,19 @@ class Database():
             msg = "Failed to execute SQL statement on " \
                 "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err.sqlstate}: {errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
+            # parent.appendLog(f'{sql}\n{parameters}')  # debug
+            return False
+        except mariadb.ProgrammingError as err:
+            msg = "Failed to execute SQL statement on " \
+                  "MariaDB/MySQL database:"
+            parent.appendLog(f'{msg}\nSQLERR: {err}')
             return False
         except (mariadb.Error,
-                mariadb.ProgrammingError,
                 mysql_error.Error) as err:
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err.sqlstate}: {err.errno} {err.msg}')
-            # parent.appendLog(f'{sql}')
+            # parent.appendLog(f'{sql}\n{parameters}')  # debug
             return False
         return True
     # /executeSQLwithWarnings
@@ -802,14 +823,14 @@ class Database():
 
     def getTables(parent, cnx, schemaname):
         if cnx:
-            sql = "SELECT table_name " \
-                "FROM INFORMATION_SCHEMA.TABLES " \
-                "WHERE TABLE_SCHEMA=%s " \
-                "AND table_type ='BASE TABLE' " \
-                "AND table_name !='geometry_columns' " \
-                "AND table_name !='spatial_ref_sys' " \
-                "AND table_name !='table_datasets' " \
-                "order by table_name asc"
+            sql = "SELECT table_name\n" \
+                  "FROM INFORMATION_SCHEMA.TABLES\n" \
+                  "WHERE TABLE_SCHEMA=%s " \
+                  "AND table_type ='BASE TABLE' " \
+                  "AND table_name !='geometry_columns' " \
+                  "AND table_name !='spatial_ref_sys' " \
+                  "AND table_name !='table_datasets' " \
+                  "\norder by table_name asc"
             par = tuple([schemaname])
             tables = Database.readDatabase(parent, cnx, sql, par)
             return tables
@@ -819,8 +840,8 @@ class Database():
     def getTableMetadataCount(parent, cnx, schemaname, tablename):
         if cnx:
             try:
-                sql = "SELECT ifnull(table_rows, -1) " \
-                      "FROM INFORMATION_SCHEMA.TABLES " \
+                sql = "SELECT ifnull(table_rows, -1)\n" \
+                      "FROM INFORMATION_SCHEMA.TABLES\n" \
                       "WHERE TABLE_SCHEMA=%s " \
                       "AND table_name=%s"
                 par = tuple([schemaname, tablename])

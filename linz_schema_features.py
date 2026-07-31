@@ -275,13 +275,13 @@ class FeaturesActions():
     # /saveProject
 
     def getProjectCRS(self, parent, cnx, schemaname):
-        sql = "select g.srid, s.srtext, count(g.f_table_name) as cnt " \
-              f"from {schemaname}.geometry_columns as g " \
+        sql = "select g.srid, s.srtext, count(g.f_table_name) as cnt\n" \
+              f"from {schemaname}.geometry_columns as g\n" \
               f"inner join {schemaname}.spatial_ref_sys as s" \
               " on s.srid=g.srid " \
-              "group by g.srid, s.srtext " \
-              "order by cnt desc " \
-              "limit 1"
+              "\ngroup by g.srid, s.srtext " \
+              "\norder by cnt desc " \
+              "\nlimit 1"
         crss = Database.readDatabase(parent, cnx, sql)
         lcrs = None
         for crs in crss:
@@ -294,10 +294,10 @@ class FeaturesActions():
 
     def getLayerCRS(self, parent, cnx,
                     schemaname, tablename):
-        sql = "select g.srid, s.srtext " \
-              f"from {schemaname}.geometry_columns as g " \
+        sql = "select g.srid, s.srtext\n" \
+              f"from {schemaname}.geometry_columns as g\n" \
               f"inner join {schemaname}.spatial_ref_sys as s" \
-              " on s.srid=g.srid " \
+              " on s.srid=g.srid\n" \
               "where g.f_table_schema=%s " \
               "and g.f_table_name=%s"
         par = tuple([schemaname, tablename])
@@ -366,18 +366,18 @@ class FeaturesActions():
               "when 'linestring' then 1 when 'polygon' then 1 " \
               "when 'multipoint' then 1 when 'multilinestring' then 1 " \
               "when 'multipolygon' then 1 when 'geometrycollection' then 1 " \
-              "when 'geometry' then 1 else 0 end) as geometries " \
-              "from information_schema.TABLES as t " \
+              "when 'geometry' then 1 else 0 end) as geometries\n" \
+              "from information_schema.TABLES as t\n" \
               "inner join information_schema.COLUMNS c " \
               "ON c.TABLE_CATALOG = t.TABLE_CATALOG " \
               "AND c.TABLE_SCHEMA = t.TABLE_SCHEMA " \
-              "AND c.TABLE_NAME = t.TABLE_NAME " \
+              "AND c.TABLE_NAME = t.TABLE_NAME\n" \
               "where t.TABLE_SCHEMA=%s " \
               "AND t.table_name !='geometry_columns' " \
               "AND t.table_name !='spatial_ref_sys' " \
               "AND t.table_name !='table_datasets' " \
-              "group by t.table_type, t.table_name " \
-              "order by geometries desc, t.table_type asc, t.TABLE_NAME asc;"
+              "\ngroup by t.table_type, t.table_name " \
+              "\norder by geometries desc, t.table_type asc, t.TABLE_NAME asc;"
         par = tuple([schemaname])
         tables = Database.readDatabase(parent, cnx, sql, par)
         return tables
@@ -526,7 +526,7 @@ class FeaturesActions():
             vField = next(iter(relation.fieldPairs().values()))
             kStorageType = relation.referencedLayer().storageType()
             vStorageType = relation.referencingLayer().storageType()
-            # parent.appendLog(f'referencedLayer type {storageType}')
+            # parent.appendLog(f'referencedLayer type {storageType}')  # debug
             isDatabase = Database.isDatabase(kStorageType) \
                 and Database.isDatabase(vStorageType) \
                 and kStorageType == vStorageType

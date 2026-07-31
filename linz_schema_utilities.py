@@ -95,7 +95,7 @@ STYLESHEET = \
     " border-left-color: darkgray;" \
     " border-top-color: darkgray;" \
     " border-right-color: black;" \
-    " border-bottom-color: black} " \
+    " border-bottom-color: black;} " \
     "QPushButton:pressed {background-color: #c4c8cc;" \
     " border-style: inset; border-width: 2px; border-radius: 6px;" \
     " border-left-color: black;" \
@@ -587,42 +587,43 @@ class Utilities():
     # /isGeometryField
 
     def getTextValue(value, width):
-        value = value.replace("'", "\\'")
-        if width:
-            if len(value) > int(width):
-                value = value[0:int(width) - 1]
-        value = "'" + value + "'"
+        if value:
+            if width:
+                if len(value) > int(width):
+                    value = value[0:int(width) - 1]
         return value
     # /getTextValue
 
     def getGeometryValue(geometry, geotype, value):
         match geometry:
             case 'POINT':
-                c1 = "ST_PointFromText"
+                geoFromText = "ST_PointFromText"
             case 'LINESTRING':
-                c1 = "ST_LineFromText"
+                geoFromText = "ST_LineFromText"
             case 'POLYGON':
-                c1 = "ST_PolyFromText"
+                geoFromText = "ST_PolyFromText"
             case 'MULTIPOINT':
-                c1 = "ST_MPointFromText"
+                geoFromText = "ST_MPointFromText"
             case 'MULTILINESTRING':
-                c1 = "ST_MLineFromText"
+                geoFromText = "ST_MLineFromText"
             case 'MULTIPOLYGON':
-                c1 = "ST_MPolyFromText"
+                geoFromText = "ST_MPolyFromText"
             case 'GEOMETRYCOLLECTION':
-                c1 = "ST_GeomCollFromText"
+                geoFromText = "ST_GeomCollFromText"
             case 'GEOMETRY':
-                c1 = "ST_GeomFromText"
+                geoFromText = "ST_GeomFromText"
             case _:
-                c1 = "ST_GeomFromText'"
+                geoFromText = "ST_GeomFromText"
         # value = value.replace(',', ',\n')
         if geometry == 'MULTI' + geotype \
            or geometry == geotype + 'COLLECTION':
             value = value.replace(geotype, f'{geometry}(', 1) + ')'
-            value = f"{c1}('{value})')"
-        else:
-            value = f"{c1}('{value}')"
-        return value
+        """
+        if geometry == 'MULTI' + geotype \
+           or geometry == geotype + 'COLLECTION':
+            value = value.replace(geotype, f'{geometry}(', 1) + ')'
+        """
+        return (geoFromText, value)
     # /getGeometryValue
 
     def isFunction(sql):
@@ -1122,7 +1123,7 @@ class QGISUtilities():
             settings = QgsSettings()
         keys = settings.allKeys()
         for key in keys:
-            # parent.appendLog(f'key {key} : {settings.value(key)}')
+            # parent.appendLog(f'key {key} : {settings.value(key)}')  # debug
             if key.startswith('UI/recentProjects/') and key.endswith('/path') \
                and recentPath is None:
                 path = settings.value(key)
@@ -1142,7 +1143,7 @@ class QGISUtilities():
             settingsFile += os.path.sep + version + '.ini'
         if os.path.isfile(settingsFile):
             try:
-                # parent.appendLog(f'settingsFile {settingsFile}')
+                # parent.appendLog(f'settingsFile {settingsFile}')  # debug
                 config = configparser.ConfigParser()
                 config.read(settingsFile)
                 configSection = config['UI']
