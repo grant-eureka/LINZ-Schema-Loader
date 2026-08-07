@@ -12,6 +12,7 @@ Designed as a stand-alone Python App and as a plugin for QGIS version 3.40+ and 
 Python 3.11+<br/>
 Requires Python module for database access (eg. mariadb or MySQLdb), this may have to be installed from the console using pip:<br/>
 > pip install mariadb<br/>
+> pip install mysql-connector-python<br/>
 Requires Python modules for Qt (eg. PyQt6 or PySide6)<br/>
 Supports Qt5 &amp; Qt6<br/>
 <br/>
@@ -48,14 +49,18 @@ Install LINZ Schema Loader from the QGIS plugin menu or set-up as a stand-alone 
 <h3>Database Schemas Menu</h3>
 <p>
     This menu is for GIS data administration of the local database.<br/>
-    These options are only available when connected to a database, preferable as a root/administrator user.<br/>
+    These options are only available when connected to a database, preferable as a root/administrator user.<br/><br/>
     <b>It is strongly recommended to perform a database backup before embarking on any database schema options.</b><br/>
 <br/>
     • Create Schema - 
     Creates a new database schema with GIS spatial dictionary tables.<br/>
     This option is only available if the selected schema doesn't already exist from "Select Schema" above, or no schema is selected.<br/>
     If no schema is selected, then you will be able to enter a new schema name and description. This schema can also be an existing database schema that you wish to add GIS spatial data.<br/>
-    At the completion of creating the schema, data is imported and indexes and views created.<br/>
+    At the completion of creating the schema, data is imported and indexes and views created.<br/><br/>
+    Requires DBA privileges (i.e. "root" user) to successfully execute this menu option.<br/>
+    If you are not authorised with DBA privileges, then you may need your organisations database administrator to run this option or manually create the schema.<br/><br/>
+    After creating a new schema, a database user will have to be created and table privileges on the new schema need to be granted to the database user.<br/>
+    A utility such as "DBeaver - Universal Database Manager" is useful for these tasks.<br/><br/>
 <br/>
     • Update Schema - 
     Use this option to update the GIS spatial dictionary tables with fields and rows that may be missing.<br/>
@@ -64,6 +69,8 @@ Install LINZ Schema Loader from the QGIS plugin menu or set-up as a stand-alone 
     • Drop Schema - 
     This option drops the selected database schema with all it's containing data.<br/>
     <b>Only use this option if you are really sure you want the data removed.</b><br/>
+    Requires DBA privileges (i.e. "root" user) to successfully execute this menu option.<br/>
+    If you are not authorised with DBA privileges, then you may need your organisations database administrator to run this option or manually drop the schema.<br/><br/>
 <br/>
     • Import *.csv Data - 
     To import the *.csv files exported from LINZ Data Service, use this option to select the directory that the *.csv files have been saved to.<br/>
@@ -71,6 +78,7 @@ Install LINZ Schema Loader from the QGIS plugin menu or set-up as a stand-alone 
     The projection and spatial information are inserted into the GIS spatial dictionary tables for the schema.<br/>
     If a *.csv file contains a data set, then all the data in the set will be imported into the database.<br/>
     Importing of large files can take a considerable amount of time.<br/>
+    It is recommended to disable "sleep" mode, in system power management settings, for large data loads.<br/>
 <br/>
     • Create Indexes - 
     After importing data, this option is used to create database indexes to enable rapid searches on the GIS tables.<br/>
@@ -105,7 +113,7 @@ Install LINZ Schema Loader from the QGIS plugin menu or set-up as a stand-alone 
     • Define Layer Styles -
     This options loads a set of feature styles into a QGIS project.<br/>
     The styles represent NZ Topographical maps.<br/>
-    <b>Warning:</b> Any pre-existing vector layer styles, within the project, may be over-written.<br/>
+    <b>Warning: Any pre-existing vector layer styles, within the project, may be over-written.</b><br/>
 <br/>
     • Create Topo Style Database - 
     Use this option to create a QGIS style database for the project.<br/>

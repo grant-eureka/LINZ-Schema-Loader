@@ -173,7 +173,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             self.refresh(self)
             if not Database.isDatabaseConnector():
                 msg = '\nUnable to connect to database:\n' + \
-                      f'No Python{sys.version} module for MariaDB/MySQL found.'
+                      f'No Python{sys.version} module for ' + \
+                      'MariaDB/MySQL connector found.'
                 self.appendLog(msg)
                 MessageBoxes.messageBox(
                     self,
@@ -383,11 +384,13 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         else:
             Database.disconnectDatabase(self, self.cnx)
         self.setMenuEnabled()
+        self.appendLog('\nSelect option from menu...')
     # /doActionConnect
 
     def doActionSelectSchema(self):
         self.selectSchema()
         self.setMenuEnabled()
+        self.appendLog('\nSelect option from menu...')
     # /doActionSelectSchema
 
     def initSchemasActions(self):
@@ -528,10 +531,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             env += '&nbsp;&nbsp;using module mariadb ' \
                 f'v.{Database.getConnectorVersion()}<br>'
         if Database.isMysql():
-            env += '&nbsp;&nbsp;using module MySQLdb ' \
-                f'v.{Database.getConnectorVersion()}<br>'
-        if Database.isPyMysql():
-            env += '&nbsp;&nbsp;using module pymysql ' \
+            env += '&nbsp;&nbsp;using module mysql ' \
                 f'v.{Database.getConnectorVersion()}<br>'
         if HAS_QGIS:
             env += '&nbsp;&nbsp;using module qgis ' \
@@ -692,6 +692,16 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             self.appendLog('Connected to database on '
                            f'{Database.getHostDB(self, self.cnx)}')
             self.localDb = Database.isLocalDB(self, self.cnx)
+            if Database.getUsername(self, self.cnx) == "root":
+                msg = '\nMake sure you have a clean database backup\n' + \
+                      'before you use any of the "Database Schemas" ' + \
+                      'menu options.'
+                self.appendLog(msg)
+                MessageBoxes.messageBox(
+                    self,
+                    MessageBoxes.INFORMATION,
+                    Utilities.getApptitle(self),
+                    msg)
             return True
         self.appendLog('Failed to connect to database')
         if self.cnx:
@@ -714,7 +724,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /selectSchema
 
     def getGISschemas(self):
-        sql = "SELECT s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME)\n" \
+        sql = f"{Database.getCRUD(2)} " \
+              "s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME)\n" \
               "FROM information_schema.TABLES t\n" \
               "INNER JOIN information_schema.schemata s " \
               "ON t.TABLE_SCHEMA=s.SCHEMA_NAME\n" \
@@ -735,8 +746,9 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             s.append(schema[0])
         par = tuple(s)
         schemas = Database.readDatabase(self, self.cnx, sql, par)
-        for schema in schemas:
-            SCHEMAS.append([schema[0], schema[1]])
+        if schemas:
+            for schema in schemas:
+                SCHEMAS.append([schema[0], schema[1]])
     # / getGISschemas
 
     """
@@ -746,7 +758,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             if field.fieldSrc == "1":
                 fidName = field.fieldName
         if fidName:
-            sql = f"SELECT ifnull(max({fidName}), 0) " \
+            sql = f"{Database.getCRUD(2)} ifnull(max({fidName}), 0) " \
                   f"FROM {schemaname}.{tablename}"
             fid = Database.readDatabaseResult(self, self.cnx, sql)
         else:
@@ -779,9 +791,9 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /readStatus
 
     def loadDatasetTable(self, schemaname):
-        sql = f"INSERT INTO {schemaname}.table_datasets\n" \
+        sql = f"{Database.getCRUD(1)} INTO {schemaname}.table_datasets\n" \
               "(schemaname, tablename, dataset_cnt)\n" \
-              "SELECT " \
+              f"{Database.getCRUD(2)} " \
               "t.TABLE_SCHEMA, t.TABLE_NAME, 0\n" \
               "FROM information_schema.TABLES t\n" \
               "WHERE " \
@@ -789,7 +801,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
               "AND t.TABLE_NAME NOT IN " \
               "('geometry_columns', 'spatial_ref_sys', 'table_datasets') " \
               "\nEXCEPT\n" \
-              "SELECT d.schemaname, d.tablename, 0\n" \
+              f"{Database.getCRUD(2)} d.schemaname, d.tablename, 0\n" \
               f"FROM {schemaname}.table_datasets d\n" \
               "WHERE d.schemaname=%s"
         par = tuple([schemaname, schemaname])
@@ -800,7 +812,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     def clearDatasetTable(self, schemaname, tablename=None):
         if schemaname:
             pars = [schemaname]
-            sql = f"DELETE FROM {schemaname}.table_datasets\n" \
+            sql = f"{Database.getCRUD(4)} " \
+                  f"FROM {schemaname}.table_datasets\n" \
                   "WHERE schemaname=%s"
             if tablename:
                 sql += " AND tablename=%s"
@@ -808,7 +821,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             par = tuple(pars)
             Database.executeSQL(self, self.cnx, sql, par)
             pars = [schemaname]
-            sql = f"DELETE FROM {schemaname}.geometry_columns\n" \
+            sql = f"{Database.getCRUD(4)} " \
+                  f"FROM {schemaname}.geometry_columns\n" \
                   "WHERE F_TABLE_SCHEMA=%s"
             if tablename:
                 sql += " AND F_TABLE_NAME=%s"
@@ -819,7 +833,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         # /clearDatasetTable
 
     def tableDefinition(self, schemaname, tablename):
-        sql = "SELECT " \
+        sql = f"{Database.getCRUD(2)} " \
             "c.ORDINAL_POSITION AS ORDINAL_POSITION, " \
             "c.COLUMN_NAME AS COLUMN_NAME, " \
             "c.COLUMN_TYPE AS COLUMN_TYPE, " \

@@ -1,6 +1,7 @@
-# -*- coding: utf-8 -*-
-# Created on : 30/11/2024, 10:10:24 pm
-# Author     : Grant Pearson, Eureka Technology Limited
+# Created on : Dec 26, 2025, 3:07:23 PM
+# linz_schema_schemas.py
+# Author     : Grant
+# Module for handling miscellaneous utility routines
 
 import os
 from enum import Enum
@@ -60,6 +61,7 @@ if importlib.util.find_spec("qgis"):
 else:
     HAS_QGIS = False
 
+# Standard stylesheet to use throughout application
 STYLESHEET = \
     u"QToolButton {" \
     " background-color: #eff0f1; color: black; margin: 1px;" \
@@ -115,7 +117,7 @@ STYLESHEET = \
 
 
 class NullClass():
-    """ Empty class for when qgis module not found
+    """Empty class for when qgis module not found
     """
 
 
@@ -143,7 +145,7 @@ class Field():
 
 
 class RelationItems():
-    """Contain relationship definitions.
+    """Class that contains relationship definitions.
     """
 
     def __init__(self,
@@ -184,6 +186,9 @@ class RelationItems():
 
 
 class MessageBoxes(Enum):
+    """Class to handle creation of message boxes.
+    """
+
     NONE = QMessageBox.Icon.NoIcon
     INFORMATION = QMessageBox.Icon.Information
     WARNING = QMessageBox.Icon.Warning
@@ -376,6 +381,9 @@ class MessageBoxes(Enum):
 
     def translate(parent, message):
         """Get the translation for a string using Qt translation API.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
         :param message: Text message for translation.
         :type message: str, QString
 
@@ -389,11 +397,27 @@ class MessageBoxes(Enum):
 
 
 class Utilities():
+    """Utilities class for handling miscellaneous utility routines
+    """
     def stylesheet():
+        """Get the application consistant stylesheet.
+
+        :returns: The application stylesheet text.
+        :rtype: str
+        """
         return STYLESHEET
     # /stylesheet
 
     def getVrtFiles(zip):
+        """Get a list of all the files of type .vrt from a zipfile.
+        :param zip: Existing zipfile.
+        :type zip: zipfile.ZipFile
+
+        :returns: List of .vrt file names.
+        :rtype: List
+        """
+        if zip is None:
+            return None
         vrtfiles = []
         for zipFile in zip.namelist():
             if zipFile.endswith('.vrt'):
@@ -402,7 +426,25 @@ class Utilities():
     # /getVrtFiles
 
     def getFields(tree, geometry, geofield, key):
+        """Get a list of all the field definitions from a .vrt file.
+        :param tree: Element tree created from .vrt file.
+        :type tree: ElementTree
+
+        :param geometry: Geometry type name given from .vrt file.
+        :type geometry: Str
+
+        :param geofield: Geometry field name given from .vrt file.
+        :type geofield: Str
+
+        :param key: Primary key field name given from .vrt file.
+        :type key: Str
+
+        :returns: List of type Field.
+        :rtype: List[]
+        """
         fields = []
+        if tree is None:
+            return fields
         if geometry:
             hasIntKey = False
             for source in tree.iter('Field'):
@@ -432,6 +474,16 @@ class Utilities():
     # /getFields
 
     def fieldTypeTranslate(fieldType, width):
+        """Convert LINZ field type to database specific types.
+        :param fieldType: LINZ GIS field type.
+        :type fieldType: Str
+
+        :param width: Size of field.
+        :type width: Int
+
+        :returns: Database specific type.
+        :rtype: Str
+        """
         if fieldType:
             fieldType = fieldType.upper().replace('CHARACTER VARYING', 'TEXT') \
                 .replace('STRING', 'VARCHAR') \
@@ -446,6 +498,19 @@ class Utilities():
     # /fieldTypeTranslate
 
     def fieldSizeTranslate(fieldName, fieldType, width):
+        """Convert LINZ field size to database limited sizes.
+        :param fieldName: LINZ GIS field name.
+        :type fieldName: Str
+
+        :param fieldType: Database field type.
+        :type fieldType: Str
+
+        :param width: Size of field.
+        :type width: Int
+
+        :returns: Database specific field size.
+        :rtype: Int
+        """
         if fieldType == 'VARCHAR' and not width:
             if fieldName.upper().endswith('CODE'):
                 width = 32
@@ -459,6 +524,13 @@ class Utilities():
     # /fieldSizeTranslate
 
     def fieldNameTranslate(fieldName):
+        """Convert LINZ field name to valid database identifier name.
+        :param fieldName: LINZ GIS field name.
+        :type fieldName: Str
+
+        :returns: Valid database identifier name.
+        :rtype: Str
+        """
         if fieldName:
             match fieldName:
                 case 'order':
@@ -479,6 +551,24 @@ class Utilities():
     # /fieldNameTranslate
 
     def isCreateFieldIndex(fieldName, fieldType, isKey=False, fieldSrc=None):
+        """Test if a field should be indexed.
+        :param fieldName: Database field name.
+        :type fieldName: Str
+
+        :param fieldType: Database field type.
+        :type fieldType: Str
+
+        :param isKey: True if field is the LINZ GIS key field.
+        :type isKey: Boolean
+
+        :param fieldSrc: Field source definition.
+                         (column name in .csv file
+                          or "1" to auto increment)
+        :type fieldSrc: Str
+
+        :returns: True if conditions met to index field.
+        :rtype: Boolean
+        """
         if fieldName is None or fieldType is None:
             return False
         if isKey or \
@@ -516,28 +606,62 @@ class Utilities():
         return False
     # /isCreateFieldIndex
 
-    def getLatestInfoDate(d1, d2):
+    def getLatestDate(d1, d2):
+        """Get the later of two dates of the same type.
+        :param d1: First date given.
+        :type d1: Object
+
+        :param d2: Second date given.
+        :type d2: Object
+
+        :returns: The later of the given dates as the type given.
+        :rtype: Object
+        """
         if d1 and d2:
             if d1 < d2:
                 return d2
         if d1:
             return d1
         return d2
-    # /getLatestInfoDate
+    # /getLatestDate
 
-    def isNewer(zipDate, schemaDate):
-        if schemaDate and zipDate:
-            return (zipDate.date() > schemaDate)
+    def isNewer(d1, d2):
+        """Test if truncated first datetime is after second date.
+        :param d1: First datetime given.
+        :type d1: datetime
+
+        :param d2: Second date given.
+        :type d2: Date
+
+        :returns: True if first date is after second date.
+        :rtype: Boolean
+        """
+        if d2 and d1:
+            return (d1.date() > d2)
         return True
     # /isNewer
 
     def isNull(value):
+        """Test if value is empty.
+        :param value: Value given.
+        :type value: Str
+
+        :returns: True if value is None or length of zero.
+        :rtype: Boolean
+        """
         if value:
             return (len(value) == 0)
         return True
     # /isNull
 
     def isTextField(type):
+        """Test if a field type is text.
+        :param type: Field type given.
+        :type type: Str
+
+        :returns: True if field type is text.
+        :rtype: Boolean
+        """
         if type:
             t = type.upper()
             if t.find('TEXT') >= 0 \
@@ -552,6 +676,13 @@ class Utilities():
     # /isTextField
 
     def isDateField(type):
+        """Test if a field type is date.
+        :param type: Field type given.
+        :type type: Str
+
+        :returns: True if field type is date or time.
+        :rtype: Boolean
+        """
         if type:
             t = type.upper()
             if t.find('DATE') >= 0 \
@@ -563,6 +694,13 @@ class Utilities():
     # /isDateField
 
     def isNumberField(type):
+        """Test if a field type is numeric.
+        :param type: Field type given.
+        :type type: Str
+
+        :returns: True if field type is numeric.
+        :rtype: Boolean
+        """
         if type:
             t = type.upper()
             if t.find('REAL') >= 0 \
@@ -576,6 +714,13 @@ class Utilities():
     # /isNumberField
 
     def isGeometryField(type):
+        """Test if a field type is geometric.
+        :param type: Field type given.
+        :type type: Str
+
+        :returns: True if field type is geometric.
+        :rtype: Boolean
+        """
         if type:
             geotypes = [
                 'POINT', 'MULTIPOINT',
@@ -586,15 +731,38 @@ class Utilities():
         return False
     # /isGeometryField
 
-    def getTextValue(value, width):
-        if value:
-            if width:
-                if len(value) > int(width):
-                    value = value[0:int(width) - 1]
+    def truncateValue(value, width):
+        """Truncate a value to given maximum width.
+        :param value: Value given.
+        :type value: Str
+
+        :param width: Maximum width of value.
+        :type width: Int
+
+        :returns: Value truncated to width.
+        :rtype: Str
+        """
+        if value and width:
+            if len(value) > int(width):
+                value = value[0:int(width) - 1]
         return value
-    # /getTextValue
+    # /truncateValue
 
     def getGeometryValue(geometry, geotype, value):
+        """Build geometry string from components.
+        :param geometry: Expected geometry type.
+        :type geometry: Str
+
+        :param geotype: Actual geometry type.
+        :type geotype: Str
+
+        :param value: Geometry string value given.
+        :type value: Str
+
+        :returns: String to geometry database function name;
+                  Corrected geometry string.
+        :rtype: Str, Str
+        """
         match geometry:
             case 'POINT':
                 geoFromText = "ST_PointFromText"
@@ -618,241 +786,156 @@ class Utilities():
         if geometry == 'MULTI' + geotype \
            or geometry == geotype + 'COLLECTION':
             value = value.replace(geotype, f'{geometry}(', 1) + ')'
-        """
-        if geometry == 'MULTI' + geotype \
-           or geometry == geotype + 'COLLECTION':
-            value = value.replace(geotype, f'{geometry}(', 1) + ')'
-        """
         return (geoFromText, value)
     # /getGeometryValue
 
-    def isFunction(sql):
-        func = False
-        f = sql.upper().split()
-        if len(f) > 1:
-            if f[0] == 'CREATE' or f[0] == 'ALTER' or f[0] == 'DROP':
-                if f[1] == 'FUNCTION' or f[1] == 'PROCEDURE':
-                    func = True
-                else:
-                    if len(f) > 3:
-                        if f[1] == 'OR' \
-                           and f[2] == 'REPLACE' \
-                           and (f[3] == 'FUNCTION' or f[3] == 'PROCEDURE'):
-                            func = True
-        return func
-    # /isFunction
-
-    def isIgnore(sql):
-        if sql:
-            f = sql.upper().split()
-            if len(f) > 8:
-                if f[0] == 'ALTER' \
-                   and f[1] == 'TABLE' \
-                   and f[3] == 'ALTER' \
-                   and f[4] == 'COLUMN' \
-                   and f[6] == 'SET' \
-                   and f[7] == 'STATISTICS':
-                    return True
-            if len(f) > 5:
-                if f[0] == 'ALTER' \
-                   and (f[1] == 'SCHEMA' or f[1] == 'DATABASE') \
-                   and f[3] == 'OWNER' \
-                   and f[4] == 'TO':
-                    return True
-            if len(f) > 1:
-                if f[0] == 'DROP' \
-                   and f[1] == 'FUNCTION':
-                    return True
-            if len(f) > 0:
-                if f[0] == 'DO' \
-                   or f[0] == 'BEGIN' \
-                   or f[0] == 'END' \
-                   or f[0] == 'SET' \
-                   or f[0] == '$' \
-                   or f[0] == ';':
-                    return True
-                if (f[0] == 'GRANT' or f[0] == 'REVOKE') \
-                   and sql[len(sql) - 1] == ';':
-                    return True
-            return False
-        return True
-    # /isIgnore
-
-    def isCreateSchema(sql):
-        create = False
-        f = sql.upper().split()
-        if len(f) > 1:
-            if f[0] == 'CREATE' \
-               and (f[1] == 'SCHEMA' or f[1] == 'DATABASE'):
-                create = True
-        return create
-    # /isCreateSchema
-
-    def createTablename(sql):
-        tablename = None
-        f = sql.split()
-        if len(f) > 5:
-            if f[0].upper() == 'CREATE' \
-               and f[1].upper() == 'TABLE' \
-               and f[2].upper() == 'IF' \
-               and f[3].upper() == 'NOT' \
-               and f[4].upper() == 'EXISTS':
-                tablename = f[5]
-        elif len(f) > 1:
-            if f[0].upper() == 'CREATE' \
-               and f[1].upper() == 'TABLE':
-                tablename = f[2]
-        return tablename
-    # /createTablename
-
     def createViewname(sql):
+        """Get database view name out of sql command text.
+        :param sql: Sql command string.
+        :type sql: Str
+
+        :returns: Name of view extracted from sql text.
+        :rtype: Str
+        """
         viewname = None
-        f = sql.split()
-        if len(f) > 4:
-            logic1 = f[0].upper() == 'CREATE' \
-                and f[1].upper() == 'OR' \
-                and f[2].upper() == 'REPLACE' \
-                and f[3].upper() == 'VIEW'
-            logic2 = f[0].upper() == 'DROP' \
-                and f[1].upper() == 'VIEW' \
-                and f[2].upper() == 'IF' \
-                and f[3].upper() == 'EXISTS'
-            if logic1 or logic2:
-                viewname = f[4]
-        elif len(f) > 2:
-            logic1 = f[0].upper() == 'CREATE' \
-                and f[1].upper() == 'VIEW'
-            logic2 = f[0].upper() == 'DROP' \
-                and f[1].upper() == 'VIEW'
-            if logic1 or logic2:
-                viewname = f[2]
+        if sql:
+            f = sql.split()
+            if len(f) > 4:
+                logic1 = f[0].upper() == 'CREATE' \
+                    and f[1].upper() == 'OR' \
+                    and f[2].upper() == 'REPLACE' \
+                    and f[3].upper() == 'VIEW'
+                logic2 = f[0].upper() == 'DROP' \
+                    and f[1].upper() == 'VIEW' \
+                    and f[2].upper() == 'IF' \
+                    and f[3].upper() == 'EXISTS'
+                if logic1 or logic2:
+                    viewname = f[4]
+            elif len(f) > 2:
+                logic1 = f[0].upper() == 'CREATE' \
+                    and f[1].upper() == 'VIEW'
+                logic2 = f[0].upper() == 'DROP' \
+                    and f[1].upper() == 'VIEW'
+                if logic1 or logic2:
+                    viewname = f[2]
         return viewname
     # /createViewname
 
     def isDropSql(sql):
-        f = sql.split()
-        if len(f) > 1:
-            if f[0].upper() == 'DROP':
-                return True
+        """Test if sql command text is a "DROP" statement.
+        :param sql: Sql command string.
+        :type sql: Str
+
+        :returns: True if Sql text is a drop command.
+        :rtype: Boolean
+        """
+        if sql:
+            f = sql.split()
+            if len(f) > 1:
+                if f[0].upper() == 'DROP':
+                    return True
         return False
     # /isDropSql
 
-    def sqlTranslate(sql):
-        sqlT = sql.replace("$DESC$", "'").replace('\t', ' ') \
-            .replace('\n', ' ')
-        f = sql.split()
-        if len(f) > 5:
-            if f[0].upper() == 'COMMENT' \
-               and f[1].upper() == 'ON' \
-               and f[2].upper() == 'SCHEMA' \
-               and f[4].upper() == 'IS':
-                c1 = sql.upper().find(' IS ') + 4
-                sqlT = f'ALTER SCHEMA {f[3]} comment=' \
-                    '{sql[c1:len(sql)].lstrip().rstrip()}'
-            if f[0].upper() == 'COMMENT' \
-               and f[1].upper() == 'ON' \
-               and f[2].upper() == 'TABLE' \
-               and f[4].upper() == 'IS':
-                c1 = sql.find("$DESC$")
-                if (c1 >= 0 and c1 < len(sql) - 6):
-                    c2 = sql.find("$DESC$", c1 + 6)
-                    if c2 < 0:
-                        c2 = len(sql)
-                    comment = f"'{sql[c1 + 6:c2].lstrip().rstrip()}'"
-                else:
-                    c1 = sql.find("'")
-                    if (c1 >= 0):
-                        c2 = sql.find("'", c1 + 1)
-                        comment = f"'{sql[c1 + 1:c2].lstrip().rstrip()}'"
-                    else:
-                        comment = f"'{sqlT[5:len(sqlT)].lstrip().rstrip()}'"
-                comment = comment.replace('\n', ' ')
-                sqlT = f'ALTER TABLE {f[3].lower()} comment={comment};'
-        if len(f) > 1:
-            if (f[0].upper() == 'CREATE' or f[0].upper() == 'ALTER') \
-               and f[1].upper() == 'TABLE':
-                sqlT = Utilities.varcharTranslate(sqlT)
-                sqlT = sqlT \
-                    .replace('character varying', 'TEXT') \
-                    .replace('CHARACTER VARYING', 'TEXT') \
-                    .replace('"order"', 'orderby') \
-                    .replace('"name"', 'name') \
-                    .replace('"current"', 'current') \
-                    .replace('"default"', 'isdefault') \
-                    .replace('"desc"', 'description') \
-                    .replace('"type"', 'type') \
-                    .replace('"constraint"', 'conditions') \
-                    .replace(' condition ', ' conditions ') \
-                    .replace(',condition ', ',conditions ') \
-                    .replace('(condition ', '(conditions ') \
-                    .replace(' without time zone', ' ')
-                sqlT = Utilities.geometryTranslate(sqlT)
-        # print("\n" + sql + "\n" + sqlT)
-        return sqlT
-    # /sqlTranslate
-
-    def varcharTranslate(sql):
-        sqlT = sql.replace('VARCHAR (', 'VARCHAR(') \
-            .replace('varchar(', 'VARCHAR(') \
-            .replace('varchar (', 'VARCHAR(')
-        v = sqlT.upper().find('VARCHAR(', 0)
-        while v > 0:
-            v1 = sqlT.upper().find('(', v) + 1
-            v2 = sqlT.upper().find(')', v)
-            size = int(sqlT[v1:v2])
-            if size > 1024:
-                sqlT = sqlT[0: v] + 'TEXT' + sqlT[v1 - 1:len(sqlT)]
-            v = sqlT.upper().find('VARCHAR(', v1)
-        return sqlT
-    # /varcharTranslate
-
-    def geometryTranslate(sql):
-        sqlT = sql.replace('geometry (', 'geometry(')
-        while sqlT.upper().find('GEOMETRY(') > 0:
-            g1 = sqlT.upper().find('GEOMETRY(')
-            g2 = g1 + 9
-            h1 = sqlT.upper().find(',', g2)
-            h2 = sqlT.upper().find(')', g2) + 1
-            sqlT = sqlT[0:g1] + sqlT[g2:h1].upper() + sqlT[h2:len(sqlT)]
-        return sqlT
-    # /geometryTranslate
-
     def getNow():
+        """Gets the current datetime.
+
+        :returns: The current datetime truncated to seconds.
+        :rtype: datetime
+        """
         return datetime.datetime.now().replace(microsecond=0)
     # /getNow
 
     def getNowString():
+        """Gets the string formatted current datetime.
+
+        :returns: The current datetime truncated to seconds.
+        :rtype: Str
+        """
         return Utilities.getNow().strftime('%d/%m/%y %H:%M:%S')
     # /getNowString
 
     def getElapsedTime(startTime):
+        """Gets the current time elapsed since a given time.
+        :param startTime: The start datetime.
+        :type startTime: datetime
+
+        :returns: The elapsed datetime truncated to seconds.
+        :rtype: datetime
+        """
         now = Utilities.getNow()
         elapsed = now - startTime
         return elapsed
     # /getElapsedTime
 
-    def getRemainingTime(startTime, fcnt, cnt):
+    def getRemainingTime(startTime, totalItems, cnt):
+        """Calculate the remaining time given the number of items processed.
+        :param startTime: The start datetime.
+        :type startTime: datetime
+
+        :param totalItems: The total number of items to process.
+        :type totalItems: Int
+
+        :param cnt: The number of items processed.
+        :type cnt: Int
+
+        :returns: The remaining time calculated.
+        :rtype: datetime
+        """
         if cnt == 0:
             return "unknown"
         elapsed = Utilities.getElapsedTime(startTime)
-        remainingTime = (((fcnt / cnt) * elapsed) - elapsed)
+        remainingTime = (((totalItems / cnt) * elapsed) - elapsed)
         remainingTime -= \
             datetime.timedelta(microseconds=remainingTime.microseconds)
         return f"{remainingTime}"
     # /getRemainingTime
 
     def getTreeText(tree, branch, index, default=None):
+        """Get the value of an item in an element tree created from XML text.
+        :param tree: The element tree from XML text.
+        :type tree: ElementTree
+
+        :param branch: The branch name within the tree.
+        :type branch: Int
+
+        :param index: The field name within the tree.
+        :type index: Str
+
+        :param default: Default value if index not found.
+        :type default: Str
+
+        :returns: String value of tree item for branch.field.
+        :rtype: Str
+        """
         text = default
-        if branch:
-            for source in tree.iter(branch):
-                text = source.attrib.get(f'{index}')
-        else:
-            for source in tree.iter(f'{index}'):
-                text = source.text
+        if tree:
+            if branch:
+                for source in tree.iter(branch):
+                    text = source.attrib.get(f'{index}')
+            else:
+                for source in tree.iter(f'{index}'):
+                    text = source.text
         return text
     # /getTreeText
 
     def getTreeInt(tree, branch, index, default=0):
+        """Get the value of an item in an element tree created from XML text.
+        :param tree: The element tree from XML text.
+        :type tree: ElementTree
+
+        :param branch: The branch name within the tree.
+        :type branch: Int
+
+        :param index: The field name within the tree.
+        :type index: Str
+
+        :param default: Default value if index not found.
+        :type default: Str
+
+        :returns: Integer value of tree item for branch.field.
+        :rtype: Int
+        """
         text = None
         if branch:
             for source in tree.iter(branch):
@@ -866,6 +949,13 @@ class Utilities():
     # /getTreeInt
 
     def getPathDirectory(path):
+        """Extract the directory name from a full path name.
+        :param path: The "/" delimited path name.
+        :type path: Str
+
+        :returns: The directory name part of a path.
+        :rtype: Str
+        """
         if path:
             s = path.rfind("/")
             if s < 1:
@@ -875,6 +965,13 @@ class Utilities():
     # /getPathDirectory
 
     def getPathFile(path):
+        """Extract the file name from a full path name, excluding any extension.
+        :param path: The "/" delimited path name.
+        :type path: Str
+
+        :returns: The file name part of a path.
+        :rtype: Str
+        """
         if path:
             e = path.rfind(".")
             if e < 1:
@@ -885,6 +982,13 @@ class Utilities():
     # /getPathFile
 
     def getPathExt(path):
+        """Extract the file extension name from a full path name.
+        :param path: The "/" delimited path name.
+        :type path: Str
+
+        :returns: The extension name part of a path.
+        :rtype: Str
+        """
         if path:
             e = path.rfind(".")
             if e < 1:
@@ -893,15 +997,36 @@ class Utilities():
         return None
     # /getPathExt
 
-    def getCsvFilepath(zip, csvFileName):
-        fileName = csvFileName
+    def getZippedFile(zip, fileName):
+        """Get the path a file from a zipfile.
+        :param zip: Existing zipfile.
+        :type zip: zipfile.ZipFile
+
+        :returns: Path of file within zip.
+        :rtype: Str
+        """
+        if zip is None or fileName is None:
+            return None
+        file = fileName
         for f in zip.namelist():
-            if f.endswith(csvFileName):
-                fileName = f
-        return fileName
-    # /getCsvFilepath
+            if f.endswith(fileName):
+                file = f
+        return file
+    # /getZippedFile
 
     def copyFolder(parent, src, dst):
+        """Copy contents of a directory recursively to another directory.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :param src: The source directory path name.
+        :type src: Str
+
+        :param dst: The destination directory path name.
+        :type dst: Str
+        """
+        if src is None or dst is None:
+            return
         for item in os.listdir(src):
             s = os.path.join(src, item)
             d = os.path.join(dst, item)
@@ -918,6 +1043,19 @@ class Utilities():
     # /copyFolder
 
     def removeFolder(parent, folder):
+        """Deletes a directory and its contents. Use with caution!
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :param folder: The directory path name.
+        :type folder: Str
+        """
+        if folder is None:
+            return
+        if len(folder) < 5:
+            parent.appendLog(
+                f'  Failed to delete {folder}: possible system folder.')
+            return
         directory = Path(folder)
         for item in directory.iterdir():
             if item.is_dir():
@@ -931,22 +1069,46 @@ class Utilities():
     # /removeFolder
 
     def getAppname(parent):
+        """Get the application name.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :returns: Name of application.
+        :rtype: Str
+        """
         if isinstance(parent, QMainWindow):
             return parent.getAppname()
         else:
-            return parent.parent.getAppname()
+            if parent.parent:
+                return Utilities.getAppname(parent.parent)
+        return ""
     # /getAppname
 
     def getApptitle(parent):
+        """Get the application title.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :returns: Title of application.
+        :rtype: Str
+        """
         if isinstance(parent, QMainWindow):
             return Utilities.getMetadata(
                 parent.metadata, 'general', 'name')
         else:
-            return Utilities.getMetadata(
-                parent.parent.metadata, 'general', 'name')
+            if parent.parent:
+                return Utilities.getApptitle(parent.parent)
+        return ""
     # /getApptitle
 
     def readMetadata(parent):
+        """Read metadata.txt for application.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :returns: metadata.
+        :rtype: ConfigParser
+        """
         metaName = 'metadata.txt'
         infoName = 'metainfo.txt'
         metadata = ConfigParser()
@@ -984,6 +1146,13 @@ class Utilities():
     # /readMetadata
 
     def readMetadataFile(metadata, metaFile):
+        """Read line from metadata.txt for application.
+        :param metadata: metadata that is appended to with newly read data.
+        :type metadata: ConfigParser
+
+        :param metaFile: open metadata file to read from.
+        :type metaFile: File
+        """
         try:
             text = metaFile.read()
             if isinstance(text, bytes):
@@ -998,6 +1167,16 @@ class Utilities():
     # /readMetadataFile
 
     def getMetadata(metadata, section='DEFAULT', key=None):
+        """Get value from metadata.
+        :param metadata: metadata.
+        :type metadata: ConfigParser
+
+        :param section: Section name of metadata to lookup.
+        :type section: Str
+
+        :param key: Key name within section of metadata to lookup.
+        :type key: Str
+        """
         if metadata and key:
             try:
                 value = metadata.get(section, key)
@@ -1011,6 +1190,13 @@ class Utilities():
     # /getMetadata
 
     def readHelpFile(parent):
+        """Read help from README.md for application.
+        :param parent: Parent application window or dialog.
+        :type parent: QtWidget
+
+        :returns: Contents text of file.
+        :rtype: Str
+        """
         helpName = 'README.md'
         if os.path.isfile(helpName):
             file = open(helpName, 'r', newline='', encoding="utf-8-sig")
@@ -1037,6 +1223,13 @@ class Utilities():
     # /readHelpFile
 
     def readHelpdataFile(file):
+        """Read help from README.md for application.
+        :param file: Open fil to read contents from.
+        :type file: File
+
+        :returns: Contents text of file.
+        :rtype: Str
+        """
         try:
             data = file.read()
             if isinstance(data, bytes):
@@ -1050,6 +1243,13 @@ class Utilities():
     # /readHelpdataFile
 
     def getPixmap(filename):
+        """Read Pixmap from file.
+        :param filename: File name to read Pixmap from.
+        :type filename: Str
+
+        :returns: Pixmap from file.
+        :rtype: QPixmap
+        """
         if filename:
             (root, file) = os.path.split(__file__)
             path = os.path.join(root, filename)
@@ -1079,6 +1279,13 @@ class Utilities():
     # /getPixmap
 
     def getIcon(filename):
+        """Read Icon from file.
+        :param filename: File name to read Icon from.
+        :type filename: Str
+
+        :returns: Icon from file.
+        :rtype: QIcon
+        """
         if filename:
             (root, file) = os.path.split(__file__)
             path = os.path.join(root, filename)
@@ -1111,7 +1318,16 @@ class Utilities():
 
 
 class QGISUtilities():
+    """Utilities class for handling QGIS utility routines
+    """
     def getRecentPath(parent):
+        """Get the most recently used path from QGIS projects.
+        :param parent: The calling parent object.
+        :type parent: Object
+
+        :returns: The most resent path name.
+        :rtype: Str
+        """
         if not HAS_QGIS:
             return None
         if parent.recentPath:
@@ -1154,6 +1370,16 @@ class QGISUtilities():
     # /getRecentPath
 
     def getProjectTitle(project, projectFile):
+        """Get the title of a QGIS projects.
+        :param parent: The calling parent object.
+        :type parent: Object
+
+        :param projectFile: The path to a QGIS project file.
+        :type projectFile: Str
+
+        :returns: The title of a project.
+        :rtype: Str
+        """
         if project and project.title() and len(project.title()) > 0:
             return project.title()
         (path, filename) = os.path.split(projectFile)

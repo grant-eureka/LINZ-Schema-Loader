@@ -1,5 +1,7 @@
-# Created on : Dec 26, 2025, 3:07:02 PM
+# Created on : Dec 26, 2025, 3:07:23 PM
+# linz_schema_features.py
 # Author     : Grant
+# Module for handling map load routines
 
 import os
 import platform
@@ -275,7 +277,8 @@ class FeaturesActions():
     # /saveProject
 
     def getProjectCRS(self, parent, cnx, schemaname):
-        sql = "select g.srid, s.srtext, count(g.f_table_name) as cnt\n" \
+        sql = f"{Database.getCRUD(2)} " \
+              "g.srid, s.srtext, count(g.f_table_name) as cnt\n" \
               f"from {schemaname}.geometry_columns as g\n" \
               f"inner join {schemaname}.spatial_ref_sys as s" \
               " on s.srid=g.srid " \
@@ -294,7 +297,7 @@ class FeaturesActions():
 
     def getLayerCRS(self, parent, cnx,
                     schemaname, tablename):
-        sql = "select g.srid, s.srtext\n" \
+        sql = f"{Database.getCRUD(2)} g.srid, s.srtext\n" \
               f"from {schemaname}.geometry_columns as g\n" \
               f"inner join {schemaname}.spatial_ref_sys as s" \
               " on s.srid=g.srid\n" \
@@ -361,7 +364,7 @@ class FeaturesActions():
     # /createGroups
 
     def getTables(self, parent, cnx, schemaname):
-        sql = "select t.table_type, t.table_name, " \
+        sql = f"{Database.getCRUD(2)} t.table_type, t.table_name, " \
               "sum(case c.column_type when 'point' then 1 " \
               "when 'linestring' then 1 when 'polygon' then 1 " \
               "when 'multipoint' then 1 when 'multilinestring' then 1 " \

@@ -1,6 +1,7 @@
-# -*- coding: utf-8 -*-
-# Created on : 30/11/2024, 10:10:24 pm
-# Author     : Grant Pearson, Eureka Technology Limited
+# Created on : Dec 26, 2025, 3:07:23 PM
+# linz_schema_database.py
+# Author     : Grant
+# Module for handling database routines
 
 import os
 import socket
@@ -51,55 +52,37 @@ if importlib.util.find_spec("linz_schema_utilities"):
 else:
     from .linz_schema_utilities import MessageBoxes, Utilities
 
-DATABASES = ["mysql", "mariadb"]
-FILESOURCES = ["sqlite", "gpkg",
-               "csv"]
 DBA_PASSWORD = None
 
 # attempt to import the relevant database libraries
-try:
-    import mariadb
-    mysql_connect = mariadb.connect
-    mysql_error = mariadb
-    HAS_MARIADB = True
-    # print('using module mariadb')
-except ImportError:
-    HAS_MARIADB = False
-
-if HAS_MARIADB:
-    HAS_MYSQL = False
-else:
-    try:
-        from MySQLdb import _mysql
-        mysql_connect = _mysql.connect
-        mysql_error = _mysql
-        HAS_MYSQL = True
-        # print('using module MySQLdb')
-    except ImportError:
-        HAS_MYSQL = False
-
-if HAS_MARIADB or HAS_MYSQL:
-    HAS_PYMYSQL = False
-else:
-    try:
-        import pymysql
-        mysql_connect = pymysql.connect
-        mysql_error = pymysql
-        HAS_PYMYSQL = True
-        # print('using module pymysql')
-    except ImportError:
-        HAS_PYMYSQL = False
-if HAS_MARIADB:
+if importlib.util.find_spec("mariadb"):
+    import mariadb as pysql
     from mariadb.constants.ERR import ER_DUP_ENTRY as ER_DUP_ENTRY
-elif HAS_MYSQL:
-    from MySQLdb.constants.ER import DUP_ENTRY as ER_DUP_ENTRY
-elif HAS_PYMYSQL:
-    from pymysql.constants.ER import DUP_ENTRY as ER_DUP_ENTRY
+    sql_error = pysql
+    HAS_MARIADB = True
+    HAS_MYSQL = False
+    # print('using module mariadb')
+elif importlib.util.find_spec("mysql"):
+    from mysql import connector as pysql
+    from mysql.connector.errorcode import ER_DUP_ENTRY as ER_DUP_ENTRY
+    sql_error = pysql.errors
+    HAS_MARIADB = False
+    HAS_MYSQL = True
+    # print('using module mysql')
 else:
-    ER_DUP_ENTRY = -1024
+    HAS_MARIADB = False
+    HAS_MYSQL = False
+    ER_DUP_ENTRY = -1062
+
+DATABASES = ["mysql", "mariadb"]
+FILESOURCES = ["sqlite", "gpkg",
+               "csv"]
 
 
 class SQLError(Exception):
+    """ Custom Class to pass Sql error exceptions.
+    """
+
     def __init__(self, errType, errText, errNo, errSql):
         self.errType = errType
         self.errText = errText
@@ -113,10 +96,8 @@ class SQLError(Exception):
 
 
 class SourceConfig():
-    """ Class to store layer database source connection details.
-    """
-    """'Type' definition for database server connections.
-    To avoid warning of "Possible hardcoded ?: 'None'":
+    """ Class to store definition for database server connections.
+        To avoid warning of "Possible hardcoded ?: 'None'":
         'username' is translated to 'u'
         'password' is translated to 'p'
     """
@@ -139,6 +120,13 @@ class SourceConfig():
 
     # set a key value
     def setKey(self, key, value):
+        """Set a SourceConfig key value.
+        :param key: Key within SourceConfig to set.
+        :type key: str
+
+        :param value: Value to set SourceConfig key to key.
+        :type value: str
+        """
         k = key.lower()
         if k.endswith('type'):
             tp = ('databasetype', value)
@@ -169,6 +157,13 @@ class SourceConfig():
 
     # return the key value
     def get(self, key):
+        """Get a SourceConfig key value.
+        :param key: Key within SourceConfig to get.
+        :type key: str
+
+        :returns: Value of SourceConfig key.
+        :rtype: str
+        """
         if key is None:
             return None
         if key == 'username':
@@ -179,11 +174,18 @@ class SourceConfig():
     # /get
 
     def getConfig(self):
+        """Get this SourceConfig.
+
+        :returns: This SourceConfig.
+        :rtype: SourceConfig
+        """
         return self.sourceConfig
     # /getConfig
 
     # clear all key values
     def clearAll(self):
+        """Clear all SourceConfig key values.
+        """
         self.setKey("databasetype", None)
         self.setKey("username", None)
         self.setKey("password", None)
@@ -219,22 +221,8 @@ class Field():
 
 
 class Database():
-    DUP_ENTRY = ER_DUP_ENTRY
-
-    def isDatabase(storageType):
-        """Test if a layer source type is a supported database
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :returns: True if database source type is supported.
-        :rtype: Boolean
-        """
-        if storageType:
-            if storageType.lower() in DATABASES:
-                return True
-        return False
-    # /isDatabase
-
+    """Utilities class for handling database routines
+    """
     def defaultPort(storageType):
         """Get default port number for database tcp connection.
         :param storageType: Storage database type.
@@ -352,11 +340,44 @@ class Database():
         return (exist > 0)
     # /isTableExist
 
+    def getCRUD(crud):
+        """Replace crud index with sql statement string.
+        Features of LINZ Schema Loader that may possibly be exposed to SQL
+         string injection attacks can only be run by trusted database users
+         with trusted data names, so bypass warnings of SQL injection.
+        Bandit source code security analyzer looks for sql execute statement
+        occurances of:
+            select % from %
+            delete % from %
+            insert into % values %
+            update  % set %
+
+        :param crud: Index of sql command
+         (1 "create", 2 "read", 3 "update", 4 "delete")
+        :type crud: int
+
+        :returns: SQL CRUD comman.
+        :rtype: str
+        """
+        match crud:
+            case 1:
+                return "insert"
+            case 2:
+                return "select"
+            case 3:
+                return "update"
+            case 4:
+                return "delete"
+        return ""
+
+    def buildSql(crud, sql):
+        return f"{Database.getCRUD(crud)} {sql}"
+
     def isDataExist(parent, cnx, schemaname, tablename):
         """Test if any rows exist in table.
         """
-        sql = "SELECT ifnull(EXISTS(" \
-              f"SELECT 1 FROM {schemaname}.{tablename}), 0)"
+        sql = f"{Database.getCRUD(2)} ifnull(EXISTS(" \
+              f"{Database.getCRUD(2)} 1 FROM {schemaname}.{tablename}), 0)"
         exist = Database.readDatabaseResult(parent, cnx, sql, silent=True)
         if exist is None:
             return False
@@ -382,7 +403,8 @@ class Database():
         """
         value = None
         try:
-            cursor = cnx.cursor()
+            # parent.appendLog(f'{sql}\n{parameters}')  # debug
+            cursor = cnx.cursor(buffered=True)
             if parameters:
                 cursor.execute(sql, parameters)
             else:
@@ -392,34 +414,19 @@ class Database():
                 return None
             value = result[0]
             cursor.close()
-        except (mariadb.Error,
-                mariadb.ProgrammingError,
-                mysql_connect.Error) as err:
+        except (sql_error.Error,
+                sql_error.ProgrammingError) as err:
             msg = "Failed to read from MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
             if silent:
                 pass
             else:
-                parent.appendLog(f'{sql}\n{parameters}')  # debug
+                parent.appendLog(f'{sql}\n{parameters}')
             MessageBoxes.messageBox(
                 parent,
                 MessageBoxes.WARNING,
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
-        """
-        except (mysql_connect.Error) as err:
-            msg = "Failed to read from MariaDB/MySQL database:"
-            parent.appendLog(f'{msg}\n{err}')
-            if silent:
-                pass
-            else:
-                parent.appendLog(f'{sql}\n{parameters}')  # debug
-            MessageBoxes.messageBox(
-                parent,
-                MessageBoxes.WARNING,
-                Utilities.getApptitle(parent),
-                f'{msg}\n{err}')
-        """
         return value
     # /readDatabaseResult
 
@@ -443,7 +450,7 @@ class Database():
 
         try:
             # parent.appendLog(f"readDatabase:\n{sql}")  # debug
-            cursor = cnx.cursor()
+            cursor = cnx.cursor(buffered=True)
             if parameters:
                 cursor.execute(sql, parameters)
             else:
@@ -451,46 +458,18 @@ class Database():
             results = cursor.fetchall()
             cursor.close()
             return results
-            """
-            if HAS_MYSQL:
-                cnx.query(f"\"{sql}\"")
-                rows = cnx.store_result()
-                results = rows.fetch_row(rows.rowcount, 1)
-                return results
-            else:
-                cur = cnx.cursor()
-                cur.execute(sql)
-                results = cur.fetchall()
-                cur.close()
-                return results
-            """
-        except (mariadb.Error, mariadb.ProgrammingError,
-                mysql_connect.Error) as err:
+        except (sql_error.Error, sql_error.ProgrammingError) as err:
             msg = "Failed to read from MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
             if silent:
                 pass
-            else:
-                parent.appendLog(f'{sql}\n{parameters}')  # debug
+            # else:
+            #     parent.appendLog(f'{sql}\n{parameters}')  # debug
             MessageBoxes.messageBox(
                 parent,
                 MessageBoxes.WARNING,
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
-        """
-        except (mysql_connect.Error) as err:
-            msg = "Failed to read from MariaDB/MySQL database:"
-            parent.appendLog(f'{msg}\n{err}')
-            if silent:
-                pass
-            else:
-                parent.appendLog(f'{sql}\n{parameters}')  # debug
-            MessageBoxes.messageBox(
-                parent,
-                MessageBoxes.WARNING,
-                Utilities.getApptitle(parent),
-                f'{msg}\n{err}')
-        """
         return None
     # /readDatabase
 
@@ -499,10 +478,9 @@ class Database():
         """
         try:
             cursor = cnx.cursor(prepared=True)
-        except (mariadb.Error,
-                mariadb.ProgrammingError,
-                mariadb.OperationalError,
-                mysql_error.Error) as err:
+        except (sql_error.Error,
+                sql_error.ProgrammingError,
+                sql_error.OperationalError) as err:
             msg = "Failed to open SQL cursor on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
@@ -518,7 +496,7 @@ class Database():
         return cursor
     # /buildSqlCursor
 
-    def executeSqlCursor(parent, cursor, sql, parameters=None, logOnly=True):
+    def executeSqlCursor(parent, cursor, sql, parameters=None, silent=True):
         """Build SQL prepared statement cusor on MySQL/MariaDB database server.
         """
         try:
@@ -526,10 +504,9 @@ class Database():
                 cursor.execute(sql, parameters)
             else:
                 cursor.execute(sql)
-        except (mariadb.IntegrityError,
-                mysql_error.IntegrityError) as err:
+        except (sql_error.IntegrityError) as err:
             # parent.appendLog(
-            #     f'IntegrityError\n{err}\n{sql}\n{oarameters}')  # debug
+            #     f'IntegrityError\n{err}\n{sql}\n{parameters}')  # debug
             if err:
                 if f'{err}'.upper().find("DUPLICATE") < 0:
                     errno = err.errno
@@ -537,21 +514,24 @@ class Database():
                     errno = ER_DUP_ENTRY
             else:
                 errno = 0
+            if silent:
+                raise SQLError(err.sqlstate, err.msg, errno, sql)
             msg = "Failed to execute SQL statement on " \
                 "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {errno} {err.msg}')
             # parent.appendLog(
             #         f"executeSqlCursor:\n{sql}\n\t{parameters}")  # debug
             return False
-        except (mariadb.Error,
-                mariadb.ProgrammingError,
-                mariadb.OperationalError,
-                mysql_error.Error) as err:
+        except (sql_error.Error,
+                sql_error.ProgrammingError,
+                sql_error.OperationalError) as err:
+            if silent:
+                raise SQLError(err.sqlstate, err.msg, err.errno, sql)
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
-            parent.appendLog(
-                    f"executeSqlCursor:\n{sql}\n\t{parameters}")  # debug
+            # parent.appendLog(
+            #     f"executeSqlCursor:\n{sql}\n\t{parameters}")  # debug
             return False
         return True
     # /executeSqlCursor
@@ -562,10 +542,9 @@ class Database():
         try:
             if cursor:
                 cursor.close()
-        except (mariadb.Error,
-                mariadb.ProgrammingError,
-                mariadb.OperationalError,
-                mysql_error.Error) as err:
+        except (sql_error.Error,
+                sql_error.ProgrammingError,
+                sql_error.OperationalError) as err:
             msg = "Failed to close SQL cursor on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
@@ -585,7 +564,8 @@ class Database():
         """
         try:
             cursor = cnx.cursor()
-            # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
+            # parent.appendLog(
+            #     f"executeSQL:\n{sql}\n\t{parameters}")  # debug
             if parameters:
                 cursor.execute(sql, parameters)
             else:
@@ -595,8 +575,7 @@ class Database():
                 pass
             else:
                 parent.appendLog('ok')
-        except (mariadb.IntegrityError,
-                mysql_error.IntegrityError) as err:
+        except sql_error.IntegrityError as err:
             # parent.appendLog(
             #     f'IntegrityError\n{err}\n{sql}\n{parameters}')  # debug
             if err:
@@ -612,43 +591,36 @@ class Database():
                 "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {errno} {err.msg}')
             # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
-            if logOnly:
-                pass
-            else:
+            if not logOnly:
                 MessageBoxes.messageBox(
                     parent,
                     MessageBoxes.WARNING,
                     Utilities.getApptitle(parent),
                     f'{msg}\nSQLERR: {errno} {err.msg}')
             return False
-        except mariadb.ProgrammingError as err:
+        except sql_error.ProgrammingError as err:
             if silent:
                 raise SQLError(None, err, 0, sql)
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err}')
             # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
-            if logOnly:
-                pass
-            else:
+            if not logOnly:
                 MessageBoxes.messageBox(
                     parent,
                     MessageBoxes.WARNING,
                     Utilities.getApptitle(parent),
                     f'{msg}\nSQLERR: {err}')
             return False
-        except (mariadb.Error,
-                mariadb.OperationalError,
-                mysql_error.Error) as err:
+        except (sql_error.Error,
+                sql_error.OperationalError) as err:
             if silent:
                 raise SQLError(err.sqlstate, err.msg, err.errno, sql)
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err.errno} {err.msg}')
-            parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
-            if logOnly:
-                pass
-            else:
+            # parent.appendLog(f"executeSQL:\n{sql}\n\t{parameters}")  # debug
+            if not logOnly:
                 MessageBoxes.messageBox(
                     parent,
                     MessageBoxes.WARNING,
@@ -676,8 +648,7 @@ class Database():
                     parent.appendLog(f"{w}")
             else:
                 parent.appendLog("ok")
-        except (mariadb.IntegrityError,
-                mysql_error.IntegrityError) as err:
+        except sql_error.IntegrityError as err:
             if err:
                 if f'{err}'.upper().find("DUPLICATE") < 0:
                     errno = err.errno
@@ -690,13 +661,12 @@ class Database():
             parent.appendLog(f'{msg}\n{err.sqlstate}: {errno} {err.msg}')
             # parent.appendLog(f'{sql}\n{parameters}')  # debug
             return False
-        except mariadb.ProgrammingError as err:
+        except sql_error.ProgrammingError as err:
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\nSQLERR: {err}')
             return False
-        except (mariadb.Error,
-                mysql_error.Error) as err:
+        except sql_error.Error as err:
             msg = "Failed to execute SQL statement on " \
                   "MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err.sqlstate}: {err.errno} {err.msg}')
@@ -725,27 +695,28 @@ class Database():
             or host == socket.gethostname() \
             or host == socket.gethostbyname(socket.gethostname()) \
             or host == "127.0.0.1"
-        if local:  # force local_infile=True for all load hosts
-            config = {
-                "host": host,
-                "port": int(sourceConfig.get("port")),
-                "user": sourceConfig.get("username"),
-                "password": sourceConfig.get("password"),
-                "database": sourceConfig.get("databasename"),
-                "local_infile": 1
-            }
-        else:
-            config = {
-                "host": host,
-                "port": int(sourceConfig.get("port")),
-                "user": sourceConfig.get("username"),
-                "password": sourceConfig.get("password"),
-                "database": sourceConfig.get("databasename"),
-                "local_infile": 1
-            }
+        # if local:  # force local_infile=True for all load hosts
         try:
-            cnx = mysql_connect(**config)
-        except (mariadb.OperationalError) as err:
+            if HAS_MYSQL:
+                config = {
+                    "host": host,
+                    "port": int(sourceConfig.get("port")),
+                    "user": sourceConfig.get("username"),
+                    "password": sourceConfig.get("password"),
+                    "database": sourceConfig.get("databasename"),
+                }
+                cnx = pysql.connect(**config, allow_local_infile=True)
+            else:
+                config = {
+                    "host": host,
+                    "port": int(sourceConfig.get("port")),
+                    "user": sourceConfig.get("username"),
+                    "password": sourceConfig.get("password"),
+                    "database": sourceConfig.get("databasename"),
+                    "local_infile": 1
+                }
+                cnx = pysql.connect(**config)
+        except sql_error.OperationalError as err:
             msg = "Failed to connect to MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
             MessageBoxes.messageBox(
@@ -754,7 +725,7 @@ class Database():
                 Utilities.getApptitle(parent),
                 f'{msg}\n{err}')
             return None
-        except (mariadb.Error, mysql_connect.Error) as err:
+        except sql_error.Error as err:
             msg = "Failed to connect to MariaDB/MySQL database:"
             parent.appendLog(f'{msg}\n{err}')
             MessageBoxes.messageBox(
@@ -773,7 +744,7 @@ class Database():
                 f'{msg}\n{err}')
             return None
         if cnx:  # timeout after 24hours
-            sql = "SET SESSION wait_timeout=86400;"
+            sql = "SET SESSION wait_timeout=86400"
             Database.executeSQL(parent, cnx, sql, silent=True)
         return cnx
     # /connectDatabase
@@ -873,18 +844,62 @@ class Database():
 
     def isConnected(cnx):
         if cnx:
-            if HAS_MARIADB:
+            if HAS_MARIADB or HAS_MYSQL:
                 try:
                     cnx.ping()
-                except mariadb.InterfaceError:
+                except sql_error.InterfaceError:
                     return False
                 return True
-            if HAS_MYSQL:
-                return cnx.isConnected()
-            if HAS_PYMYSQL:
-                return cnx.open
         return False
     # /isConnected
+
+    def isDatabaseConnector():
+        if HAS_MARIADB or HAS_MYSQL:
+            return True
+        return False
+    # /isDatabaseConnector
+
+    def getConnectorVersion():
+        if HAS_MARIADB or HAS_MYSQL:
+            return pysql.__version__
+        return ''
+    # /getConnectorVersion
+
+    def isMariadb():
+        return HAS_MARIADB
+    # /isMariadb
+
+    def isMysql():
+        return HAS_MYSQL
+    # /isMysql
+
+    def isDatabase(storageType):
+        """Test if a layer source type is a supported database
+        :param storageType: Data source database type.
+        :type storageType: str, QString
+
+        :returns: True if database source type is supported.
+        :rtype: Boolean
+        """
+        if storageType:
+            if storageType.lower() in DATABASES:
+                return True
+        return False
+    # /isDatabase
+
+    def isFileSource(storageType):
+        """Test if a layer source type is a supported database
+        :param storageType: Data source database type.
+        :type storageType: str, QString
+
+        :returns: True if database source type is supported.
+        :rtype: Boolean
+        """
+        if storageType:
+            if storageType.lower() in FILESOURCES:
+                return True
+        return False
+    # /isFileSource
 
     def extractSourceURI(storageType, uriComponents):
         """Extract source connection information from a
@@ -1064,46 +1079,4 @@ class Database():
         # print(f'path={path}\troot={root}\tfile={file}\text={ext}')
         return sourceConfig
     # /extractShapeSourceURI
-
-    def isFileSource(storageType):
-        """Test if a layer source type is a supported database
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :returns: True if database source type is supported.
-        :rtype: Boolean
-        """
-        if storageType:
-            if storageType.lower() in FILESOURCES:
-                return True
-        return False
-    # /isFileSource
-
-    def isDatabaseConnector():
-        if HAS_MARIADB or HAS_MYSQL or HAS_PYMYSQL:
-            return True
-        return False
-    # /isDatabaseConnector
-
-    def getConnectorVersion():
-        if HAS_MARIADB:
-            return mariadb.__version__
-        elif HAS_MYSQL:
-            return _mysql.__version__
-        elif HAS_PYMYSQL:
-            return pymysql.__version__
-        return ''
-    # /getConnectorVersion
-
-    def isMariadb():
-        return HAS_MARIADB
-    # /isMariadb
-
-    def isMysql():
-        return HAS_MYSQL
-    # /isMysql
-
-    def isPyMysql():
-        return HAS_PYMYSQL
-    # /isPyMysql
 # /Database

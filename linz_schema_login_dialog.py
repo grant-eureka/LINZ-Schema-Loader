@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Created on : Apr 14, 2025, 6:39:30 PM
 # Author     : Grant
-# Creates the login dialog
+# Creates the database login dialog
 
 import socket
 import importlib.util

@@ -2,7 +2,7 @@
 
 [general]
 name=LINZ Schema Loader
-version=1.06.04
+version=1.06.05
 qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 supportsQt6=True
@@ -13,9 +13,9 @@ about=QGIS Plugin/Standalone App to manage a local MariaDB/MySQL database with N
   Handles spatial and non-spatial *.csv files exported and downloaded from LINZ Data Service at https://data.linz.govt.nz/data/
   Ability to create QGIS vector layers of the imported data. Options to define known relationships between tables and default symbology and labels for the map layers.
   A default New Zealand topographic style database is provided that can be loaded into a QGIS project and used to style topographical features.
-  Unlike the "LINZ Data Importer" and "Koordinates" plugins, LINZ Schema Loader loads exported LINZ data directly into a database much more reliably.
+  Unlike the "LINZ Data Importer" and "Koordinates" plugins, LINZ Schema Loader loads exported LINZ data directly into a local database without loosing data in large data-sets.
   LINZ Schema Loader is aimed for Database/GIS administrators and users wishing to build a mapping system for primarily New Zealand data.
-  Requires Python modules for database access (eg. mariadb or MySQLdb)
+  Requires Python modules for database access (eg. mariadb connector or MySQL connector)
 
 author=Grant Pearson, Eureka Technology Limited
 email=grant.eureka@xtra.co.nz
@@ -24,6 +24,14 @@ tracker=https://github.com/grant-eureka/LINZ-Schema-Loader
 repository=https://plugins.qgis.org/
 
 changelog=
+  1.06.05
+    Security update to prevent SQL Injection attacks with Python.
+    MySQL connector Python module calls corrected.
+    Remove support for Python module pymysql.
+    Warnings now given for first 15 duplicates skipped on table load.
+    Add more parameter checks for None values.
+    Remove unused methods from classes.
+    More documentation.
   1.06.04
     Security update to prevent SQL Injection attacks with Python.
   1.06.03
@@ -37,5 +45,5 @@ changelog=
 tags=QGIS,python,attribute,table,feature,SQL,database,mariadb,mysql,import,load,create,table,view,index,relation,join,vector,map,layer,style,symbol,label,LINZ
 category=Database
 icon=icon.svg
-experimental=True
+experimental=False
 deprecated=False
