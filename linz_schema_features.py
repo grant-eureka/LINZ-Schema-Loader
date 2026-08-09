@@ -16,48 +16,26 @@ if importlib.util.find_spec("PyQt"):
     # from PyQt import uic, loadUi
     # from PyQt import QtGui, QtWidgets, QtCore
     from PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        Qt,
+        QDomDocument)
 else:
     # from .PyQt import uic, loadUi
     # from .PyQt import QtGui, QtWidgets, QtCore
     from .PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        Qt,
+        QDomDocument)
 
 if importlib.util.find_spec("linz_schema_utilities"):
     from linz_schema_utilities import (
-        MessageBoxes, Utilities, QGISUtilities, RelationItems)
+        MessageBoxes, Utilities)
+    from linz_schema_qgis import (
+        QGISUtilities, RelationItems)
     from linz_schema_database import Database
 else:
     from .linz_schema_utilities import (
-        MessageBoxes, Utilities, QGISUtilities, RelationItems)
+        MessageBoxes, Utilities)
+    from .linz_schema_qgis import (
+        QGISUtilities, RelationItems)
     from .linz_schema_database import Database
 
 if importlib.util.find_spec("qgis"):
@@ -80,7 +58,7 @@ else:
 
 
 class Counters():
-    """'Type' definition for database field.
+    """'Type' definition for progress counters.
     """
     EXIST_FEATURES = 0
     EXIST_TABLES = 1
@@ -101,21 +79,18 @@ class Counters():
     newTotal = 0
 
     def __init__(self):
-        self.existFeatures = 0
-        self.existTables = 0
-        self.existViews = 0
-        self.existTotal = 0
-        self.newFeatures = 0
-        self.newTables = 0
-        self.newViews = 0
-        self.newTotal = 0
+        self.reset()
 
     def __str__(self):
         return f'Total existing : {self.existTotal} ' \
                f'Total new : {self.newTotal}'
 
-    def increment(self, field):
-        match field:
+    def increment(self, key):
+        """Increment a counter.
+        :param key: Counter key to increment.
+        :type key: Int
+        """
+        match key:
             case self.EXIST_FEATURES:
                 self.existFeatures += 1
                 self.existTotal += 1
@@ -139,10 +114,26 @@ class Counters():
             case self.NEW_TOTAL:
                 self.newTotal += 1
     # /increment
+
+    def reset(self):
+        """Reset all counters to 0.
+        """
+        self.existFeatures = 0
+        self.existTables = 0
+        self.existViews = 0
+        self.existTotal = 0
+        self.newFeatures = 0
+        self.newTables = 0
+        self.newViews = 0
+        self.newTotal = 0
+    # /reset
 # /Counters
 
 
 class FeaturesActions():
+    """Methods class for Features actions.
+    """
+
     def __init__(self):
         super().__init__()
     # /__init__
@@ -152,6 +143,8 @@ class FeaturesActions():
     # /init
 
     def processLayers(self, parent, sourceConfig, cnx, schemaname):
+        """Create vector layers for tables and views in database schema.
+        """
         parent.appendLog(f'\nCreating vector layers for {schemaname}...')
         (project, title) = self.openProject(parent, cnx, schemaname)
         if project is None:
@@ -175,10 +168,11 @@ class FeaturesActions():
                 layerName = table[1].replace("_", " ").title() \
                     .replace("Nz", "NZ").replace("Linz", "LINZ")
                 uri = f'{url},tables={table[1]}'
-                cnt = Database.getTableMetadataCount(
-                    parent, cnx, schemaname, table[1])
-                if cnt >= 16384:
-                    uri += ',useEstimatedMetadata=True'
+                # useEstimatedMetadata option not available
+                # cnt = Database.getTableMetadataCount(
+                #     parent, cnx, schemaname, table[1])
+                # if cnt >= 16384:
+                #     uri += ',useEstimatedMetadata=True'
 
                 # uri.setGeometryColumn(parent, geometryColumn: str | None)
                 # uri.setKeyColumn(parent, column: str | None)
@@ -219,6 +213,8 @@ class FeaturesActions():
     # /processLayers
 
     def openProject(self, parent, cnx=None, schemaname=None):
+        """Open a QGIS project.
+        """
         if not HAS_QGIS:
             return (None, None)
         project = QgsProject.instance()
@@ -263,6 +259,8 @@ class FeaturesActions():
     # /openProject
 
     def saveProject(self, parent, project, title):
+        """Save a QGIS project.
+        """
         if parent.isPlugin:
             parent.appendLog("**** Save changes in project from QGIS")
         else:
@@ -277,6 +275,8 @@ class FeaturesActions():
     # /saveProject
 
     def getProjectCRS(self, parent, cnx, schemaname):
+        """Get default CRS from a QGIS project.
+        """
         sql = f"{Database.getCRUD(2)} " \
               "g.srid, s.srtext, count(g.f_table_name) as cnt\n" \
               f"from {schemaname}.geometry_columns as g\n" \
@@ -297,6 +297,8 @@ class FeaturesActions():
 
     def getLayerCRS(self, parent, cnx,
                     schemaname, tablename):
+        """Get layer CRS from a QGIS project.
+        """
         sql = f"{Database.getCRUD(2)} g.srid, s.srtext\n" \
               f"from {schemaname}.geometry_columns as g\n" \
               f"inner join {schemaname}.spatial_ref_sys as s" \
@@ -314,6 +316,8 @@ class FeaturesActions():
     # /getLayerCRS
 
     def addLayer(self, parent, schemaname, table, group, layer, counters):
+        """Add a map vector layer to a QGIS project.
+        """
         if parent.iface:
             parent.iface.mainWindow().blockSignals(True)
         QgsProject.instance().addMapLayer(layer, False)
@@ -350,6 +354,8 @@ class FeaturesActions():
     # /addLayer
 
     def createGroups(self, project, schemaname):
+        """Create default vector layer groups in a QGIS project.
+        """
         root = project.layerTreeRoot()
         group = root.findGroup(schemaname)
         if not group:
@@ -364,6 +370,8 @@ class FeaturesActions():
     # /createGroups
 
     def getTables(self, parent, cnx, schemaname):
+        """Get tables from a database schema.
+        """
         sql = f"{Database.getCRUD(2)} t.table_type, t.table_name, " \
               "sum(case c.column_type when 'point' then 1 " \
               "when 'linestring' then 1 when 'polygon' then 1 " \
@@ -387,6 +395,8 @@ class FeaturesActions():
     # /getTables
 
     def processRelations(self, parent, cnx, schemaname):
+        """Create known relations between vector layers in a QGIS project.
+        """
         parent.appendLog(f'\nDefine relationships for {schemaname}...')
         (project, title) = self.openProject(parent, cnx, schemaname)
         if project is None:
@@ -437,6 +447,8 @@ class FeaturesActions():
 
     def processRelationsFile(self, parent, cnx,
                              schemaname, reader, existingRelations):
+        """Process known relations from linz_schema_joins.csv file.
+        """
         cnt = -1
         new = 0
         old = 0
@@ -499,6 +511,8 @@ class FeaturesActions():
 
     def isRelationExist(self, existingRelations,
                         primaryLayer, primaryField, refLayer, refField):
+        """Test if relation already exists.
+        """
         # for existingRelation in existingRelations:
         #     print(existingRelation)
         # print(f"    {primaryLayer.name()}, {primaryField}, "
@@ -518,6 +532,8 @@ class FeaturesActions():
     # /isRelationExist
 
     def getRelations(self, parent, schemaname):
+        """Read existing relations from QGIS project.
+        """
         #   Get existing relations
         parent.appendLog('    Get existing relations...')
         relationItems = []
@@ -530,8 +546,8 @@ class FeaturesActions():
             kStorageType = relation.referencedLayer().storageType()
             vStorageType = relation.referencingLayer().storageType()
             # parent.appendLog(f'referencedLayer type {storageType}')  # debug
-            isDatabase = Database.isDatabase(kStorageType) \
-                and Database.isDatabase(vStorageType) \
+            isDatabase = QGISUtilities.isDatabase(kStorageType) \
+                and QGISUtilities.isDatabase(vStorageType) \
                 and kStorageType == vStorageType
             if isDatabase:
                 layers = QgsProject.instance().mapLayersByName(
@@ -541,7 +557,7 @@ class FeaturesActions():
                 uriComponents = QgsProviderRegistry.instance().decodeUri(
                     primaryLayer.dataProvider().name(),
                     primaryLayer.source())
-                sourceConfig = Database.extractDatabaseSourceURI(
+                sourceConfig = QGISUtilities.extractDatabaseSourceURI(
                     kStorageType,
                     uriComponents)
                 primaryTable = sourceConfig.get("tablename")
@@ -554,7 +570,7 @@ class FeaturesActions():
                 uriComponents = QgsProviderRegistry.instance().decodeUri(
                     refLayer.dataProvider().name(),
                     refLayer.source())
-                sourceConfig = Database.extractDatabaseSourceURI(
+                sourceConfig = QGISUtilities.extractDatabaseSourceURI(
                     vStorageType,
                     uriComponents)
                 refTable = sourceConfig.get("tablename")
@@ -580,6 +596,9 @@ class FeaturesActions():
     # /getRelations
 
     def getTableLayers(self, storageType, schemaname, tablename):
+        """Get list of vector layers with a database datasource
+           from a QGIS project.
+        """
         layers = QgsProject.instance().mapLayers().values()
         tableLayers = list()
         for layer in layers:
@@ -589,7 +608,7 @@ class FeaturesActions():
                     uriComponents = QgsProviderRegistry.instance().decodeUri(
                         layer.dataProvider().name(),
                         layer.source())
-                    sourceConfig = Database.extractDatabaseSourceURI(
+                    sourceConfig = QGISUtilities.extractDatabaseSourceURI(
                         storageType,
                         uriComponents)
                     sourceTable = sourceConfig.get("tablename")
@@ -602,6 +621,8 @@ class FeaturesActions():
     ########################################################
 
     def processLoadLayerStyles(self, parent, cnx, schemaname):
+        """Define display styles for vector layer features in a  QGIS project.
+        """
         parent.appendLog('\nDefine map styles for current project...')
         (project, title) = self.openProject(parent, cnx, schemaname)
         if project is None:
@@ -640,35 +661,9 @@ class FeaturesActions():
 
     ########################################################
 
-    def processTopoStyles(self, parent, cnx, schemaname):
-        parent.appendLog(
-            '\nCreating NZ topo map style database for all projects...')
-        (project, title) = self.openProject(parent, cnx, schemaname)
-        if project is None:
-            return
-        parent.setCursor(Qt.CursorShape.WaitCursor)
-        projectFile = project.fileName()
-        (projectPath, projectFilename) = os.path.split(projectFile)
-        imageFolder = os.path.join(projectPath, 'nz-topo-images')
-        try:
-            parent.appendLog(f"Create style images folder {imageFolder}")
-            os.makedirs(imageFolder, exist_ok=True)
-        except (OSError, IOError) as err:
-            msg = f"Failed to create style images folder {imageFolder}\n{err}"
-            parent.appendLog(f'{msg}')
-            parent.unsetCursor()
-            MessageBoxes.messageBox(
-                parent,
-                MessageBoxes.WARNING,
-                Utilities.getApptitle(parent),
-                msg)
-            return
-        self.extractTopoImageFiles(parent, imageFolder)
-        self.updateTopoStylesdb(parent, imageFolder, projectFile)
-        parent.unsetCursor()
-    # /processTopoStyles
-
     def extractTopoImageFiles(self, parent, imageFolder):
+        """Extract style image files from source folder.
+        """
         sourceFolder = 'styles'
         (root, ext) = os.path.split(__file__)
         (file, ext) = os.path.splitext(root)
@@ -699,6 +694,9 @@ class FeaturesActions():
     # /extractTopoImageFiles
 
     def updateTopoProjectStyles(self, parent, imageFolder, projectFile):
+        """Get feature vector layers from QGIS project in which to update
+           the style.
+        """
         parent.appendLog(f"Opening project '{projectFile}'...")
         project = QgsProject.instance()
         try:
@@ -713,66 +711,8 @@ class FeaturesActions():
                 for (layer_name, layer) in project.mapLayers().items():
                     if layer.type() == QgsMapLayer.LayerType.VectorLayer and \
                        layer.isSpatial():
-                        if layer.wkbType() != Qgis.WkbType.Unknown and \
-                           layer.wkbType() != Qgis.WkbType.NoGeometry:
-                            styleFileName = FeaturesActions.getStyleFileName(
-                                layer)
-                            xml = None
-                            if styleFileName is not None:
-                                try:
-                                    (root, ext) = os.path.split(__file__)
-                                    (file, ext) = os.path.splitext(root)
-                                    if ext == '.zip' or ext == '.pyz':
-                                        zip = zipfile.ZipFile(root, 'r')
-                                        zipStyleFileName = \
-                                            f"styles/{styleFileName}"
-                                        for item in zip.namelist():
-                                            if item == zipStyleFileName:
-                                                styleFile = zip.open(item, 'r')
-                                                xmlText = styleFile.read()
-                                                styleFile.close()
-                                                xml = QDomDocument(
-                                                    styleFileName)
-                                                xml.setContent(xmlText)
-                                                parent.appendLog(
-                                                    '    style read from '
-                                                    f'{root}//'
-                                                    f'{zipStyleFileName}')
-                                        zip.close()
-                                    else:
-                                        (root, file) = os.path.split(__file__)
-                                        stylePath = os.path.join(
-                                            root, 'styles', styleFileName)
-                                        if os.path.isfile(stylePath):
-                                            styleFile = open(stylePath, 'r')
-                                            xmlText = styleFile.read()
-                                            styleFile.close()
-                                            xml = QDomDocument(styleFileName)
-                                            xml.setContent(xmlText)
-                                            parent.appendLog(
-                                                '    style read from '
-                                                f'{stylePath}')
-                                except IOError as err:
-                                    parent.appendLog(
-                                        'Failed to read style file '
-                                        f'{styleFileName}\n{err}')
-
-                            if xml is not None:
-                                docElement = xml.documentElement()
-                                FeaturesActions.updateImportTagImage(
-                                    imageFolder, docElement)
-                                layer.importNamedStyle(xml)
-                                parent.appendLog(
-                                    '    updated style for '
-                                    f'layer {layer.name()}')
-                            else:
-                                parent.appendLog(
-                                    '    style not found for '
-                                    f'layer {layer.name()}')
-                        else:
-                            parent.appendLog(
-                                f"    layer {layer.name()} "
-                                "has unknown geometry")
+                        self.updateTopoProjectMapStyle(
+                            parent, layer, imageFolder)
                     i += 1
                     parent.ui.progressBar.setValue(i)
                     parent.refresh(parent)
@@ -786,9 +726,108 @@ class FeaturesActions():
             parent.appendLog(f'Failed to open project {projectFile}\n{err}')
     # /updateTopoProjectStyles
 
+    def updateTopoProjectMapStyle(self, parent, layer, imageFolder):
+        """Find matching style for the features and update the vector layer.
+           the style.
+        """
+        # imageFolder, projectFile):
+        if layer.wkbType() != Qgis.WkbType.Unknown and \
+           layer.wkbType() != Qgis.WkbType.NoGeometry:
+            styleFileName = FeaturesActions.getStyleFileName(
+                layer)
+            xml = None
+            if styleFileName is not None:
+                try:
+                    (root, ext) = os.path.split(__file__)
+                    (file, ext) = os.path.splitext(root)
+                    if ext == '.zip' or ext == '.pyz':
+                        zip = zipfile.ZipFile(root, 'r')
+                        zipStyleFileName = \
+                            f"styles/{styleFileName}"
+                        for item in zip.namelist():
+                            if item == zipStyleFileName:
+                                styleFile = zip.open(item, 'r')
+                                xmlText = styleFile.read()
+                                styleFile.close()
+                                xml = QDomDocument(
+                                    styleFileName)
+                                xml.setContent(xmlText)
+                                parent.appendLog(
+                                    '    style read from '
+                                    f'{root}//{zipStyleFileName}')
+                        zip.close()
+                    else:
+                        (root, file) = os.path.split(__file__)
+                        stylePath = os.path.join(
+                            root, 'styles', styleFileName)
+                        if os.path.isfile(stylePath):
+                            styleFile = open(stylePath, 'r')
+                            xmlText = styleFile.read()
+                            styleFile.close()
+                            xml = QDomDocument(styleFileName)
+                            xml.setContent(xmlText)
+                            parent.appendLog(
+                                '    style read from '
+                                f'{stylePath}')
+                except IOError as err:
+                    parent.appendLog(
+                        'Failed to read style file '
+                        f'{styleFileName}\n{err}')
+
+            if xml is not None:
+                docElement = xml.documentElement()
+                FeaturesActions.updateImportTagImage(
+                    imageFolder, docElement)
+                layer.importNamedStyle(xml)
+                parent.appendLog(
+                    '    updated style for '
+                    f'layer {layer.name()}')
+            else:
+                parent.appendLog(
+                    '    style not found for '
+                    f'layer {layer.name()}')
+        else:
+            parent.appendLog(
+                f"    layer {layer.name()} "
+                "has unknown geometry")
+    # /updateTopoProjectMapStyle
+
     ########################################################
 
+    def processTopoStyles(self, parent, cnx, schemaname):
+        """Create a style database for use with layers in a QGIS project.
+           Styles are based on New Zealand standard topographic styles.
+        """
+        parent.appendLog(
+            '\nCreating NZ topo map style database for all projects...')
+        (project, title) = self.openProject(parent, cnx, schemaname)
+        if project is None:
+            return
+        parent.setCursor(Qt.CursorShape.WaitCursor)
+        projectFile = project.fileName()
+        (projectPath, projectFilename) = os.path.split(projectFile)
+        imageFolder = os.path.join(projectPath, 'nz-topo-images')
+        try:
+            parent.appendLog(f"Create style images folder {imageFolder}")
+            os.makedirs(imageFolder, exist_ok=True)
+        except (OSError, IOError) as err:
+            msg = f"Failed to create style images folder {imageFolder}\n{err}"
+            parent.appendLog(f'{msg}')
+            parent.unsetCursor()
+            MessageBoxes.messageBox(
+                parent,
+                MessageBoxes.WARNING,
+                Utilities.getApptitle(parent),
+                msg)
+            return
+        self.extractTopoImageFiles(parent, imageFolder)
+        self.updateTopoStylesdb(parent, imageFolder, projectFile)
+        parent.unsetCursor()
+    # /processTopoStyles
+
     def updateTopoStylesdb(self, parent, imageFolder, projectFile):
+        """Update styles database for use with layers in a QGIS project.
+        """
         (projectPath, projectFilename) = os.path.split(projectFile)
         styledbName = projectPath + os.sep + 'NZ Topo Styles.db'
         stylesdb = FeaturesActions.getStylesdb(parent, styledbName)
@@ -803,66 +842,11 @@ class FeaturesActions():
             (root, ext) = os.path.split(__file__)
             (file, ext) = os.path.splitext(root)
             if ext == '.zip' or ext == '.pyz':
-                zip = zipfile.ZipFile(root, 'r')
-                nameList = zip.namelist()
-                parent.ui.progressBar.setMinimum(0)
-                parent.ui.progressBar.setMaximum(len(nameList))
-                parent.ui.progressBar.setVisible(True)
-                i = 0
-                for item in nameList:
-                    if item.startswith("styles") \
-                       and FeaturesActions.isBestStyleFile(item, nameList):
-                        (p, ext) = os.path.splitext(item)
-                        if (ext == '.qml' or ext == '.xml') and p.find('.') < 0:
-                            styleFile = zip.open(item, 'r')
-                            xmlText = styleFile.read()
-                            styleFile.close()
-                            featureType = self.getXMLStyleFeatureType(
-                                parent, xmlText)
-                            styleName = FeaturesActions.getStyleName(
-                                featureType, nameList, item)
-                            if not styleName.endswith(' <IGNORE>'):
-                                parent.appendLog(
-                                    f'    process style {item}')
-                                self.updateXMLStyles(
-                                    parent, imageFolder, stylesdb,
-                                    styleName, xmlText)
-                    i += 1
-                    parent.ui.progressBar.setValue(i)
-                    parent.refresh(parent)
-                zip.close()
+                self.updateTopoStylesdbFromZip(
+                    parent, stylesdb, imageFolder)
             else:
-                (root, file) = os.path.split(__file__)
-                nameList = os.listdir(os.path.join(root, 'styles'))
-                if nameList:
-                    parent.ui.progressBar.setMinimum(0)
-                    parent.ui.progressBar.setMaximum(len(nameList))
-                    parent.ui.progressBar.setVisible(True)
-                    i = 0
-                    for item in nameList:
-                        stylePath = os.path.join(
-                            root, 'styles', item)
-                        if os.path.isfile(stylePath) \
-                           and FeaturesActions.isBestStyleFile(item, nameList):
-                            (p, ext) = os.path.splitext(item)
-                            if (ext == '.qml' or ext == '.xml') \
-                               and p.find('.') < 0:
-                                styleFile = open(stylePath, 'r')
-                                xmlText = styleFile.read()
-                                styleFile.close()
-                                featureType = self.getXMLStyleFeatureType(
-                                    parent, xmlText)
-                                styleName = FeaturesActions.getStyleName(
-                                    featureType, nameList, item)
-                                if not styleName.endswith(' <IGNORE>'):
-                                    parent.appendLog(
-                                        f'    process style {item}')
-                                    self.updateXMLStyles(
-                                        parent, imageFolder, stylesdb,
-                                        styleName, xmlText)
-                        i += 1
-                        parent.ui.progressBar.setValue(i)
-                        parent.refresh(parent)
+                self.updateTopoStylesdbFromFolder(
+                    parent, stylesdb, imageFolder)
             parent.ui.progressBar.reset()
             parent.ui.progressBar.setVisible(False)
             parent.appendLog('Map styles loaded')
@@ -871,7 +855,77 @@ class FeaturesActions():
         parent.appendLog('Finished loading map style database')
     # /updateTopoStylesdb
 
+    def updateTopoStylesdbFromZip(self, parent, stylesdb, imageFolder):
+        """Update styles database from zip file.
+        """
+        (root, ext) = os.path.split(__file__)
+        zip = zipfile.ZipFile(root, 'r')
+        nameList = zip.namelist()
+        parent.ui.progressBar.setMinimum(0)
+        parent.ui.progressBar.setMaximum(len(nameList))
+        parent.ui.progressBar.setVisible(True)
+        i = 0
+        for item in nameList:
+            if item.startswith("styles") \
+               and FeaturesActions.isBestStyleFile(item, nameList):
+                (p, ext) = os.path.splitext(item)
+                if (ext == '.qml' or ext == '.xml') and p.find('.') < 0:
+                    styleFile = zip.open(item, 'r')
+                    xmlText = styleFile.read()
+                    styleFile.close()
+                    featureType = self.getXMLStyleFeatureType(
+                        parent, xmlText)
+                    styleName = FeaturesActions.getStyleName(
+                        featureType, nameList, item)
+                    if not styleName.endswith(' <IGNORE>'):
+                        parent.appendLog(f'    process style {item}')
+                        self.updateXMLStyles(
+                            parent, imageFolder, stylesdb,
+                            styleName, xmlText)
+            i += 1
+            parent.ui.progressBar.setValue(i)
+            parent.refresh(parent)
+        zip.close()
+    # /updateTopoStylesdbFromZip
+
+    def updateTopoStylesdbFromFolder(self, parent, stylesdb, imageFolder):
+        """Update styles database from folder.
+        """
+        (root, file) = os.path.split(__file__)
+        nameList = os.listdir(os.path.join(root, 'styles'))
+        if nameList:
+            parent.ui.progressBar.setMinimum(0)
+            parent.ui.progressBar.setMaximum(len(nameList))
+            parent.ui.progressBar.setVisible(True)
+            i = 0
+            for item in nameList:
+                stylePath = os.path.join(
+                    root, 'styles', item)
+                if os.path.isfile(stylePath) \
+                   and FeaturesActions.isBestStyleFile(item, nameList):
+                    (p, ext) = os.path.splitext(item)
+                    if (ext == '.qml' or ext == '.xml') \
+                       and p.find('.') < 0:
+                        styleFile = open(stylePath, 'r')
+                        xmlText = styleFile.read()
+                        styleFile.close()
+                        featureType = self.getXMLStyleFeatureType(
+                            parent, xmlText)
+                        styleName = FeaturesActions.getStyleName(
+                            featureType, nameList, item)
+                        if not styleName.endswith(' <IGNORE>'):
+                            parent.appendLog(f'    process style {item}')
+                            self.updateXMLStyles(
+                                parent, imageFolder, stylesdb,
+                                styleName, xmlText)
+                i += 1
+                parent.ui.progressBar.setValue(i)
+                parent.refresh(parent)
+    # /updateTopoStylesdbFromFolder
+
     def getStylesdb(parent, styledbName):
+        """Open/create styles database.
+        """
         parent.appendLog('Initialize map styles database...')
         stylesdb = None
         if os.path.isfile(styledbName):
@@ -916,6 +970,8 @@ class FeaturesActions():
     # /getStylesdb
 
     def addProjectTopoStylesdb(self, parent, stylesdb, projectFile):
+        """Add styles database to database.
+        """
         parent.appendLog(f"Opening project '{projectFile}'...")
         styledbName = stylesdb.fileName()
         project = QgsProject.instance()
@@ -950,6 +1006,8 @@ class FeaturesActions():
 
     def updateXMLStyles(self, parent, imageFolder, stylesdb,
                         styleName, xmlText):
+        """Update style XML with correct image path.
+        """
         xml = QDomDocument(styleName)
         xml.setContent(xmlText)
         if xml is not None:
@@ -971,6 +1029,8 @@ class FeaturesActions():
     # /updateXMLStyles
 
     def getXMLStyleFeatureType(self, parent, xmlText):
+        """Update style XML with correct symbol.
+        """
         xml = QDomDocument("feature")
         xml.setContent(xmlText)
         if xml is not None:
@@ -988,6 +1048,8 @@ class FeaturesActions():
     # /getXMLStyleFeatureType
 
     def getStyleLabel(xml):
+        """Get style labeling.
+        """
         root = xml.documentElement()
         child = root.firstChildElement()
         while not child.isNull():
@@ -999,6 +1061,8 @@ class FeaturesActions():
 
     def saveStyleLabels(parent, stylesdb, styleName, tags,
                         labelType, labelElement):
+        """Save labels for feature vector layer.
+        """
         parent.appendLog('        load label style')
         context = QgsReadWriteContext()
         layerSettings = QgsAbstractVectorLayerLabeling.create(
@@ -1021,6 +1085,8 @@ class FeaturesActions():
     # /saveStyleLabels
 
     def saveStyleLabel(parent, stylesdb, styleName, tags, labelType, label):
+        """Save label in styles database.
+        """
         if stylesdb.saveLabelSettings(styleName, label, False, tags):
             parent.appendLog(
                 f'        {labelType} label style "{styleName}" saved')
@@ -1030,6 +1096,8 @@ class FeaturesActions():
     # /saveStyleLabel
 
     def getStyleSymbol(xml):
+        """Get style symbololgy.
+        """
         root = xml.documentElement()
         child = root.firstChildElement()
         while not child.isNull():
@@ -1041,6 +1109,8 @@ class FeaturesActions():
 
     def saveStyleSymbols(parent, stylesdb, styleName, tags,
                          symbolType, symbolElement):
+        """Save symbololgy for feature vector layer.
+        """
         parent.appendLog('        load symbol style')
         context = QgsReadWriteContext()
         featureRenderer = QgsFeatureRenderer.load(symbolElement, context)
@@ -1095,6 +1165,8 @@ class FeaturesActions():
 
     def saveStyleSymbol(parent, stylesdb, styleName, tags,
                         symbolType, symbol):
+        """Save symbololgy in styles database.
+        """
         if symbol:
             if stylesdb.saveSymbol(styleName, symbol, True, tags):
                 parent.appendLog(
@@ -1107,6 +1179,8 @@ class FeaturesActions():
     # /saveStyleSymbol
 
     def getStyleRuleName(element, subKey):
+        """Get style rules.
+        """
         child = element.firstChildElement()
         rules = None
         while not child.isNull() and not rules:
@@ -1126,6 +1200,8 @@ class FeaturesActions():
     # /getStyleRuleName
 
     def logStyleMessages(parent, context):
+        """Log style handling message
+        """
         if context:
             messages = context.takeMessages()
             for message in messages:
@@ -1133,6 +1209,9 @@ class FeaturesActions():
     # /logStyleMessages
 
     def getStyleTags(stylesdb, styleName):
+        """Create tags for styles database.
+           Tag names are generated from style name.
+        """
         tagRemoveList = [
             "All",
             "And",
@@ -1172,6 +1251,8 @@ class FeaturesActions():
     # /getStyleTags
 
     def getTagTranslate(tags):
+        """Clean up tag names.
+        """
         translateList = {
             "Nz": "NZ",
             "Linz": "LINZ",
@@ -1223,6 +1304,8 @@ class FeaturesActions():
     # /getTagTranslateList
 
     def updateImportTagImage(imageFolder, root):
+        """Update tag image with folder name.
+        """
         child = root.firstChildElement()
         while not child.isNull():
             if child.hasAttribute("name") and child.hasAttribute("value"):
@@ -1240,6 +1323,8 @@ class FeaturesActions():
     ########################################################
 
     def exportTopoStyles():
+        """Development method to extract styles from model projects.
+        """
         (root, file) = os.path.split(__file__)
         if not HAS_QGIS:
             print('No QGIS module')
@@ -1286,6 +1371,8 @@ class FeaturesActions():
     # /exportTopoStyles
 
     def exportTopoProject(styleFolder, projectFile):
+        """Export styles from model projects.
+        """
         print(f"Opening '{projectFile}'...")
         project = QgsProject.instance()
         try:
@@ -1340,6 +1427,8 @@ class FeaturesActions():
     # /exportTopoProject
 
     def isExportTagKeep(name):
+        """List of tag types for styles.
+        """
         tags = ["flags", "elevation", "renderer-v2", "selection", "labeling",
                 "blendMode", "featureBlendMode", "layerOpacity",
                 "SingleCategoryDiagramRenderer", "DiagramLayerSettings",
@@ -1349,6 +1438,8 @@ class FeaturesActions():
     # /isExportTagKeep
 
     def updateExportTagImage(styleFolder, root):
+        """Update image folder name without root directory.
+        """
         child = root.firstChildElement()
         while not child.isNull():
             if child.hasAttribute("name") and child.hasAttribute("value"):
@@ -1374,6 +1465,8 @@ class FeaturesActions():
     ########################################################
 
     def getStyleFileName(layer):
+        """Get style file name, for layer, to search for.
+        """
         styleFile = None
         if layer.dataProvider():
             dpName = layer.dataProvider().name()
@@ -1381,7 +1474,7 @@ class FeaturesActions():
             dpName = None
         uriComponents = QgsProviderRegistry.instance().decodeUri(
             dpName, layer.source())
-        sourceConfig = Database.extractSourceURI(
+        sourceConfig = QGISUtilities.extractSourceURI(
             layer.storageType(), uriComponents)
         table = sourceConfig.get("tablename")
         path = sourceConfig.get("path")
@@ -1393,6 +1486,8 @@ class FeaturesActions():
     # /getStyleFileName
 
     def getStyleName(featureType, nameList, file):
+        """Get style name from style file name.
+        """
         (root, f) = os.path.split(file)
         (filename, ext) = os.path.splitext(f)
         styleName = filename.lower()
@@ -1452,6 +1547,8 @@ class FeaturesActions():
     # /getStyleName
 
     def getStyleNameTypeSufix(filenameType, featureType):
+        """Get style name sufffix from feature type.
+        """
         match filenameType:
             case Qgis.SymbolType.Marker:
                 sufix = ' Point'
@@ -1473,6 +1570,8 @@ class FeaturesActions():
     # /getStyleNameTypeSufix
 
     def isBestStyleFile(file, fileList):
+        """Get best fit style dependant on layer name scale.
+        """
         if file is None:
             return False
         if file.find('-125k.') >= 0:

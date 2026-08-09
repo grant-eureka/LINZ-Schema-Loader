@@ -18,48 +18,20 @@ if importlib.util.find_spec("PyQt"):
     # from PyQt import uic, loadUi
     # from PyQt import QtGui, QtWidgets, QtCore
     from PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        QCoreApplication,
+        QIcon, QPixmap, QImage,
+        QMainWindow,
+        QMessageBox, QFileDialog,
+        QLabel)
 else:
     # from .PyQt import uic, loadUi
     # from .PyQt import QtGui, QtWidgets, QtCore
     from .PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
-
-if importlib.util.find_spec("qgis"):
-    from qgis.core import Qgis
-    from qgis.core import QgsApplication
-    from qgis.core import QgsSettings
-    HAS_QGIS = True
-else:
-    HAS_QGIS = False
+        QCoreApplication,
+        QIcon, QPixmap, QImage,
+        QMainWindow,
+        QMessageBox, QFileDialog,
+        QLabel)
 
 # Standard stylesheet to use throughout application
 STYLESHEET = \
@@ -116,11 +88,6 @@ STYLESHEET = \
     "QDialog {color: rgb(0, 0, 0); background-color: #e0ffe1;} "
 
 
-class NullClass():
-    """Empty class for when qgis module not found
-    """
-
-
 class Field():
     """'Type' definition for database field.
     """
@@ -142,47 +109,6 @@ class Field():
         return f'{self.fieldName} : {self.fieldSrc} : ' \
             '{self.fieldType} : {self.fieldWidth} : {self.isKey}'
 # /Field
-
-
-class RelationItems():
-    """Class that contains relationship definitions.
-    """
-
-    def __init__(self,
-                 primaryLayer, primaryTable, primaryField,
-                 refLayer, refTable, refField):
-        self.primaryLayer = primaryLayer
-        self.primaryTable = primaryTable
-        self.primaryField = primaryField
-        self.refLayer = refLayer
-        self.refTable = refTable
-        self.refField = refField
-
-    def __str__(self):
-        return self.text()
-
-    def primaryLayer(self):
-        return self.primaryLayer
-
-    def primaryTable(self):
-        return self.primaryTable
-
-    def primaryField(self):
-        return self.primaryField
-
-    def refLayer(self):
-        return self.refLayer
-
-    def refTable(self):
-        return self.refTable
-
-    def refField(self):
-        return self.refField
-
-    def text(self):
-        return f'{self.primaryLayer}:{self.primaryTable}.{self.primaryField}' \
-               f' > {self.refLayer}:{self.refTable}{self.refField}'
-# /RelationItems
 
 
 class MessageBoxes(Enum):
@@ -909,7 +835,7 @@ class Utilities():
         :rtype: Str
         """
         text = default
-        if tree:
+        if tree is not None:
             if branch:
                 for source in tree.iter(branch):
                     text = source.attrib.get(f'{index}')
@@ -1052,9 +978,13 @@ class Utilities():
         """
         if folder is None:
             return
-        if len(folder) < 5:
+        if isinstance(folder, str):
+            name = folder
+        else:
+            name = f'{folder}'
+        if len(name) < 5:
             parent.appendLog(
-                f'  Failed to delete {folder}: possible system folder.')
+                f'  Failed to delete {name}: possible system folder.')
             return
         directory = Path(folder)
         for item in directory.iterdir():
@@ -1315,75 +1245,3 @@ class Utilities():
         return None
     # /getIcon
 # /Utilities
-
-
-class QGISUtilities():
-    """Utilities class for handling QGIS utility routines
-    """
-    def getRecentPath(parent):
-        """Get the most recently used path from QGIS projects.
-        :param parent: The calling parent object.
-        :type parent: Object
-
-        :returns: The most resent path name.
-        :rtype: Str
-        """
-        if not HAS_QGIS:
-            return None
-        if parent.recentPath:
-            return parent.recentPath
-        recentPath = None
-        if isinstance(parent.app, QgsApplication):
-            settings = QSettings()
-        else:
-            settings = QgsSettings()
-        keys = settings.allKeys()
-        for key in keys:
-            # parent.appendLog(f'key {key} : {settings.value(key)}')  # debug
-            if key.startswith('UI/recentProjects/') and key.endswith('/path') \
-               and recentPath is None:
-                path = settings.value(key)
-                if path and isinstance(path, str):
-                    (recentPath, file) = os.path.split(path)
-        if recentPath:
-            return recentPath
-        settingsFile = settings.fileName()
-        s = settingsFile.find('share')
-        v = Qgis.version().split('.')
-        version = 'QGIS' + v[0]
-        if settingsFile.find('Unknown') and s:
-            s += 5
-            settingsFile = settingsFile[0:s]
-            settingsFile = os.path.join(settingsFile, 'QGIS', version,
-                                        'profiles', 'default', 'QGIS')
-            settingsFile += os.path.sep + version + '.ini'
-        if os.path.isfile(settingsFile):
-            try:
-                # parent.appendLog(f'settingsFile {settingsFile}')  # debug
-                config = configparser.ConfigParser()
-                config.read(settingsFile)
-                configSection = config['UI']
-                recentPath = configSection['lastProjectDir']
-            except KeyError as err:
-                parent.appendLog(f'Config Error reading {settingsFile} : {err}')
-        return recentPath
-    # /getRecentPath
-
-    def getProjectTitle(project, projectFile):
-        """Get the title of a QGIS projects.
-        :param parent: The calling parent object.
-        :type parent: Object
-
-        :param projectFile: The path to a QGIS project file.
-        :type projectFile: Str
-
-        :returns: The title of a project.
-        :rtype: Str
-        """
-        if project and project.title() and len(project.title()) > 0:
-            return project.title()
-        (path, filename) = os.path.split(projectFile)
-        (title, ext) = os.path.splitext(filename)
-        return title.title().replace("Nz", "NZ").replace("Linz", "LINZ")
-    # /getProjectTitle
-# /QGISUtilities

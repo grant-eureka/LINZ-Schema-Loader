@@ -3,56 +3,13 @@
 # Author     : Grant
 # Module for handling database routines
 
-import os
 import socket
-from urllib.parse import urlsplit
 import importlib.util
-
-if importlib.util.find_spec("PyQt"):
-    # from PyQt import uic, loadUi
-    # from PyQt import QtGui, QtWidgets, QtCore
-    from PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
-else:
-    # from .PyQt import uic, loadUi
-    # from .PyQt import QtGui, QtWidgets, QtCore
-    from .PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
 
 if importlib.util.find_spec("linz_schema_utilities"):
     from linz_schema_utilities import MessageBoxes, Utilities
 else:
     from .linz_schema_utilities import MessageBoxes, Utilities
-
-DBA_PASSWORD = None
 
 # attempt to import the relevant database libraries
 if importlib.util.find_spec("mariadb"):
@@ -74,9 +31,7 @@ else:
     HAS_MYSQL = False
     ER_DUP_ENTRY = -1062
 
-DATABASES = ["mysql", "mariadb"]
-FILESOURCES = ["sqlite", "gpkg",
-               "csv"]
+DBA_PASSWORD = None
 
 
 class SQLError(Exception):
@@ -289,6 +244,19 @@ class Database():
     # /convertFieldType
 
     def isSchemaExist(parent, cnx, schemaname):
+        """Test if named schema exists in database.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemaname: Name if schema to test for.
+        :type schemaname: str
+
+        :returns: True of schema found.
+        :rtype: Boolean
+        """
         sql = "SELECT SCHEMA_NAME\nFROM information_schema.SCHEMATA\n" \
               "WHERE lower(SCHEMA_NAME)=lower(%s)"
         par = tuple([schemaname])
@@ -299,6 +267,19 @@ class Database():
     # /isSchemaExist
 
     def isGISSchemaExist(parent, cnx, schemaname):
+        """Test if named schema exists in database and contains geometry tables.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemaname: Name of schema to test for.
+        :type schemaname: str
+
+        :returns: True if schema found with geometry tables.
+        :rtype: Boolean
+        """
         if Database.isSchemaExist(parent, cnx, schemaname):
             sql = "SELECT COUNT(*)\nFROM information_schema.TABLES\n" \
                   "WHERE lower(TABLE_SCHEMA)=lower(%s) " \
@@ -309,25 +290,24 @@ class Database():
             if result > 2:
                 return True
         return False
-    # /isSchemaExist
-
-    """
-    def isTableExist(self, schemaname, tablename):
-        sql = "SELECT t.TABLE_NAME\n" \
-              "FROM information_schema.TABLES t\n" \
-              "WHERE t.TABLE_SCHEMA=%s " \
-              "AND t.TABLE_NAME=%s"
-        par = tuple([schemaname, tablename])
-        result = Database.readDatabaseResult(self, self.cnx, sql, par)
-        if result:
-            if result == tablename:
-                return True
-        return False
-    # /isTableExist
-    """
+    # /isGISSchemaExist
 
     def isTableExist(parent, cnx, schemaname, tablename):
-        """Test if table exists.
+        """Test if named table exists in named schema.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemaname: Name of schema to test for.
+        :type schemaname: str
+
+        :param tablename: Name of table to test for.
+        :type tablename: str
+
+        :returns: True if table found in schema.
+        :rtype: Boolean
         """
         sql = "SELECT count(TABLE_NAME)\n" \
               "FROM information_schema.TABLES\n" \
@@ -341,22 +321,12 @@ class Database():
     # /isTableExist
 
     def getCRUD(crud):
-        """Replace crud index with sql statement string.
-        Features of LINZ Schema Loader that may possibly be exposed to SQL
-         string injection attacks can only be run by trusted database users
-         with trusted data names, so bypass warnings of SQL injection.
-        Bandit source code security analyzer looks for sql execute statement
-        occurances of:
-            select % from %
-            delete % from %
-            insert into % values %
-            update  % set %
-
+        """Get Sql command for given crud index.
         :param crud: Index of sql command
          (1 "create", 2 "read", 3 "update", 4 "delete")
         :type crud: int
 
-        :returns: SQL CRUD comman.
+        :returns: Sql CRUD command.
         :rtype: str
         """
         match crud:
@@ -371,10 +341,45 @@ class Database():
         return ""
 
     def buildSql(crud, sql):
+        """Prefix sql statement with correct command.
+        Features of LINZ Schema Loader that may possibly be exposed to SQL
+         string injection attacks can only be run by trusted database users
+         with trusted data names, so bypass warnings of SQL injection.
+        Bandit source code security analyzer looks for sql execute statement
+        occurances of:
+            select % from %
+            delete % from %
+            insert into % values %
+            update  % set %
+
+        :param crud: Index of sql command
+         (1 "create", 2 "read", 3 "update", 4 "delete")
+        :type crud: int
+
+        :param sql: Sql statement that follows initial command.
+        :type sql: Str
+
+        :returns: Full Sql statement.
+        :rtype: str
+        """
         return f"{Database.getCRUD(crud)} {sql}"
 
     def isDataExist(parent, cnx, schemaname, tablename):
         """Test if any rows exist in table.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemaname: Name of schema to test for.
+        :type schemaname: str
+
+        :param tablename: Name of table to test for.
+        :type tablename: str
+
+        :returns: True if any data is found table.
+        :rtype: Boolean
         """
         sql = f"{Database.getCRUD(2)} ifnull(EXISTS(" \
               f"{Database.getCRUD(2)} 1 FROM {schemaname}.{tablename}), 0)"
@@ -387,10 +392,10 @@ class Database():
     def readDatabaseResult(parent, cnx, sql, parameters=None, silent=False):
         """Read single result from MySQL/MariaDB database server.
         :param parent: Parent application window or dialog.
-        :type parent: QtWidget
+        :type parent: QWidget
 
         :param cnx: Database connection.
-        :type cnx: SourceConfig
+        :type cnx: MySQLConnection or Connection
 
         :param sql: SQL query statement.
         :type sql: str
@@ -398,8 +403,12 @@ class Database():
         :param parameters: tuple of parameter values.
         :type parameters: tuple
 
-        :returns:Value of first field in first result found.
-        :rtype: object
+        :param silent: True if errors are logged only;
+                       False if error message displayed.
+        :type silent: Boolean
+
+        :returns: Value of first field in first result found.
+        :rtype: Object
         """
         value = None
         try:
@@ -433,10 +442,10 @@ class Database():
     def readDatabase(parent, cnx, sql, parameters=None, silent=False):
         """Read data from MySQL/MariaDB database server.
         :param parent: Parent application window or dialog.
-        :type parent: QtWidget
+        :type parent: QWidget
 
         :param cnx: Database connection.
-        :type cnx: SourceConfig
+        :type cnx: MySQLConnection or Connection
 
         :param sql: SQL query statement.
         :type sql: str
@@ -444,10 +453,13 @@ class Database():
         :param parameters: tuple of parameter values.
         :type parameters: tuple
 
-        :returns:Values of all results found.
-        :rtype: tuple(tuple())
-        """
+        :param silent: True if errors are logged only;
+                       False if error message displayed.
+        :type silent: Boolean
 
+        :returns: Values of all results found.
+        :rtype: tuple(tuple)
+        """
         try:
             # parent.appendLog(f"readDatabase:\n{sql}")  # debug
             cursor = cnx.cursor(buffered=True)
@@ -474,7 +486,20 @@ class Database():
     # /readDatabase
 
     def openSqlCursor(parent, cnx, logOnly=True):
-        """Build SQL prepared statement cusor on MySQL/MariaDB database server.
+        """Open a cursor for executing SQL prepared statements
+           on MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param logOnly: True if errors are logged only;
+                       False if error message displayed.
+        :type logOnly: Boolean
+
+        :returns: Values of all results found.
+        :rtype: Cursor
         """
         try:
             cursor = cnx.cursor(prepared=True)
@@ -497,7 +522,25 @@ class Database():
     # /buildSqlCursor
 
     def executeSqlCursor(parent, cursor, sql, parameters=None, silent=True):
-        """Build SQL prepared statement cusor on MySQL/MariaDB database server.
+        """Execute a SQL prepared statement on MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param sql: SQL statement to execute.
+        :type sql: str
+
+        :param parameters: tuple of parameter values.
+        :type parameters: tuple
+
+        :param silent: True if errors are logged only;
+                       False if error message displayed.
+        :type silent: Boolean
+
+        :returns: True if execute successful.
+        :rtype: Boolean
         """
         try:
             if parameters:
@@ -537,7 +580,17 @@ class Database():
     # /executeSqlCursor
 
     def closeSqlCursor(parent, cursor, logOnly=True):
-        """Build SQL prepared statement cusor on MySQL/MariaDB database server.
+        """Close a cursor used for a SQL prepared statements
+           on MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param logOnly: True if errors are logged only;
+                       False if error message displayed.
+        :type logOnly: Boolean
         """
         try:
             if cursor:
@@ -558,9 +611,46 @@ class Database():
                     f'{msg}\nSQLERR: {err.errno} {err.msg}')
     # /closeSqlCursor
 
+    def silentOk(parent, silent=False):
+        """Log Ok message.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param silent: True if error is to be raised;
+                       False if outcome handled within method.
+        :type silent: Boolean
+        """
+        if silent:
+            pass
+        else:
+            parent.appendLog('ok')
+    # /silentOk
+
     def executeSQL(parent, cnx, sql, parameters=None,
                    silent=False, logOnly=True):
-        """Execute SQL statement on MySQL/MariaDB database server.
+        """Execute a SQL statement on MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param sql: SQL statement to execute.
+        :type sql: str
+
+        :param parameters: tuple of parameter values.
+        :type parameters: tuple
+
+        :param silent: True if error is to be raised;
+                       False if outcome handled within method.
+        :type silent: Boolean
+
+        :param logOnly: True if errors are logged only;
+                       False if error message displayed.
+        :type logOnly: Boolean
+
+        :returns: True if execute successful.
+        :rtype: Boolean
         """
         try:
             cursor = cnx.cursor()
@@ -571,10 +661,7 @@ class Database():
             else:
                 cursor.execute(sql)
             cursor.close()
-            if silent:
-                pass
-            else:
-                parent.appendLog('ok')
+            Database.silentOk(parent, silent)
         except sql_error.IntegrityError as err:
             # parent.appendLog(
             #     f'IntegrityError\n{err}\n{sql}\n{parameters}')  # debug
@@ -631,7 +718,22 @@ class Database():
     # /executeSQL
 
     def executeSQLwithWarnings(parent, cnx, sql, parameters=None):
-        """Execute SQL statement on MySQL/MariaDB database server.
+        """Execute a SQL statement on MySQL/MariaDB database server.
+           Display any database warnings after succcessful execution.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param sql: SQL statement to execute.
+        :type sql: str
+
+        :param parameters: tuple of parameter values.
+        :type parameters: tuple
+
+        :returns: True if execute successful.
+        :rtype: Boolean
         """
         try:
             cursor = cnx.cursor()
@@ -677,24 +779,48 @@ class Database():
 
     def commit(parent, cnx):
         """Commit database changes.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: True if execute successful.
+        :rtype: Boolean
         """
         return Database.executeSQL(parent, cnx, 'COMMIT', silent=True)
     # /commit
 
     def rollback(parent, cnx):
-        """Commit database changes.
+        """Rollback database changes.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: True if execute successful.
+        :rtype: Boolean
         """
         return Database.executeSQL(parent, cnx, 'ROLLBACK', silent=True)
     # /rollback
 
     def connectDatabase(parent, sourceConfig):
         """Connect to MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param sourceConfig: Database connection details.
+        :type sourceConfig: SourceConfig
+
+        :returns: Database connection.
+        :rtype: MySQLConnection or Connection
         """
         host = sourceConfig.get("hostname")
-        local = host.lower() == "localhost" \
-            or host == socket.gethostname() \
-            or host == socket.gethostbyname(socket.gethostname()) \
-            or host == "127.0.0.1"
+        # local = host.lower() == "localhost" \
+        #     or host == socket.gethostname() \
+        #     or host == socket.gethostbyname(socket.gethostname()) \
+        #     or host == "127.0.0.1"
         # if local:  # force local_infile=True for all load hosts
         try:
             if HAS_MYSQL:
@@ -751,12 +877,27 @@ class Database():
 
     def disconnectDatabase(parent, cnx):
         """Disconnect from MySQL/MariaDB database server.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
         """
         if Database.isConnected(cnx):
             cnx.close()
     # /disconnectDatabase
 
     def getHostDB(parent, cnx):
+        """Get connected database server host name.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: Name of host server.
+        :rtype: Str
+        """
         if cnx:
             try:
                 sql = "select @@hostname"
@@ -769,6 +910,16 @@ class Database():
     # /getHostDB
 
     def getDBVersion(parent, cnx):
+        """Get connected database version.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: Version of connected database.
+        :rtype: Str
+        """
         if cnx:
             try:
                 sql = "select version()"
@@ -781,6 +932,16 @@ class Database():
     # /getDBVersion
 
     def getUsername(parent, cnx):
+        """Get connected database user name.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: Name of connected database user.
+        :rtype: Str
+        """
         if cnx:
             try:
                 sql = "SELECT SUBSTRING_INDEX(user(), '@', 1)"
@@ -792,7 +953,61 @@ class Database():
         return None
     # /getUsername
 
+    def getGISschemas(parent, cnx, schemas):
+        """Get a list of non-gis system tables within a schema.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemas: List of schemas.
+        :type schemas: list
+
+        :returns: Table names in schema.
+        :rtype: tuple
+        """
+        sql = f"{Database.getCRUD(2)} " \
+              "s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME)\n" \
+              "FROM information_schema.TABLES t\n" \
+              "INNER JOIN information_schema.schemata s " \
+              "ON t.TABLE_SCHEMA=s.SCHEMA_NAME\n" \
+              "WHERE (s.SCHEMA_NAME like '%gis%' " \
+              " OR s.SCHEMA_NAME like '%geo%' " \
+              " OR lower(t.TABLE_NAME) in " \
+              "  ('geometry_columns', 'spatial_ref_sys', 'table_datasets')) " \
+              "AND s.SCHEMA_NAME not in ("
+        for schema in schemas:
+            sql += "%s, "
+        sql += \
+            "'information_schema', 'performance_schema', 'sys', " \
+            "'mysql', 'bin_log') " \
+            "\nGROUP BY s.SCHEMA_NAME, s.SCHEMA_COMMENT " \
+            "\nORDER BY count(t.TABLE_NAME) desc, s.SCHEMA_NAME asc"
+        s = []
+        for schema in schemas:
+            s.append(schema[0])
+        par = tuple(s)
+        results = Database.readDatabase(parent, cnx, sql, par)
+        if schemas:
+            for schema in results:
+                schemas.append([schema[0], schema[1]])
+    # / getGISschemas
+
     def getTables(parent, cnx, schemaname):
+        """Get a list of non-gis system tables within a schema.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemaname: Database schema name.
+        :type schemaname: Str
+
+        :returns: Table names in schema.
+        :rtype: tuple
+        """
         if cnx:
             sql = "SELECT table_name\n" \
                   "FROM INFORMATION_SCHEMA.TABLES\n" \
@@ -809,6 +1024,22 @@ class Database():
     # /getTables
 
     def getTableMetadataCount(parent, cnx, schemaname, tablename):
+        """Get estimated number of records in a table from metadata.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :param schemaname: Database schema name.
+        :type schemaname: Str
+
+        :param tablename: Database table name.
+        :type tablename: Str
+
+        :returns: Estimated number of rows.
+        :rtype: Int
+        """
         if cnx:
             try:
                 sql = "SELECT ifnull(table_rows, -1)\n" \
@@ -827,6 +1058,18 @@ class Database():
     # /getTableMetadataCount
 
     def isLocalDB(parent, cnx):
+        """Test if connected database server is on the same host as this
+           running application.
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: True if database server host name is "localhost",
+                  or is the same as the application running host.
+        :rtype: Boolean
+        """
         if cnx:
             try:
                 sql = "select @@hostname"
@@ -843,6 +1086,16 @@ class Database():
     # /isLocalDB
 
     def isConnected(cnx):
+        """Test if database is connected
+        :param parent: Parent application window or dialog.
+        :type parent: QWidget
+
+        :param cnx: Database connection.
+        :type cnx: MySQLConnection or Connection
+
+        :returns: True if database server is currently connected.
+        :rtype: Boolean
+        """
         if cnx:
             if HAS_MARIADB or HAS_MYSQL:
                 try:
@@ -854,229 +1107,42 @@ class Database():
     # /isConnected
 
     def isDatabaseConnector():
+        """Test if supported Python database connector module found.
+
+        :returns: True if Python database connector module found.
+        :rtype: Boolean
+        """
         if HAS_MARIADB or HAS_MYSQL:
             return True
         return False
     # /isDatabaseConnector
 
     def getConnectorVersion():
+        """Get Python database connector module version.
+
+        :returns: Python database connector module version description.
+        :rtype: Str
+        """
         if HAS_MARIADB or HAS_MYSQL:
             return pysql.__version__
         return ''
     # /getConnectorVersion
 
     def isMariadb():
+        """Test if Python mariadb connector module found.
+
+        :returns: True if Python mariadb connector module found.
+        :rtype: Boolean
+        """
         return HAS_MARIADB
     # /isMariadb
 
     def isMysql():
+        """Test if Python mysql connector module found.
+
+        :returns: True if Python mysql connector module found.
+        :rtype: Boolean
+        """
         return HAS_MYSQL
     # /isMysql
-
-    def isDatabase(storageType):
-        """Test if a layer source type is a supported database
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :returns: True if database source type is supported.
-        :rtype: Boolean
-        """
-        if storageType:
-            if storageType.lower() in DATABASES:
-                return True
-        return False
-    # /isDatabase
-
-    def isFileSource(storageType):
-        """Test if a layer source type is a supported database
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :returns: True if database source type is supported.
-        :rtype: Boolean
-        """
-        if storageType:
-            if storageType.lower() in FILESOURCES:
-                return True
-        return False
-    # /isFileSource
-
-    def extractSourceURI(storageType, uriComponents):
-        """Extract source connection information from a
-        vector layer source URI
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :param uriComponents: Data source database URI components.
-        :type uriComponents: QVariantMap
-
-        :returns: layer source URI split into connection components.
-        :rtype: SourceConfig
-        """
-        # print(f'extractSourceURI\nuriComponents:\n\t{uriComponents}')
-        if uriComponents:
-            # print(f'storageType={storageType} : '
-            #       'isDatabase={Utilities.isDatabase(storageType)}')
-            s = storageType.upper()
-            if Database.isDatabase(storageType):
-                if s == "ODBC":
-                    return Database.extractODBCSourceURI(
-                        storageType, uriComponents)
-                else:
-                    return Database.extractDatabaseSourceURI(
-                        storageType, uriComponents)
-            elif Database.isFileSource(storageType):
-                return Database.extractFileSourceURI(
-                    storageType, uriComponents)
-            elif s == "GPX" or s == "ESRI SHAPEFILE":
-                return Database.extractShapeSourceURI(
-                    storageType, uriComponents)
-        sourceConfig = SourceConfig()
-        sourceConfig.clearAll()
-        sourceConfig.setKey('databasetype', storageType)
-        return sourceConfig
-    # /extractSourceURI
-
-    def extractODBCSourceURI(storageType, uriComponents):
-        """Extract database source connection information from a
-        ODBC layer source URI
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :param uriComponents: Data source database URI components.
-        :type uriComponents: QVariantMap
-
-        :returns: layer source URI split into connection components.
-        :rtype: SourceConfig
-        """
-        sourceConfig = SourceConfig()
-        sourceConfig.clearAll()
-        sourceConfig.setKey('databasetype', storageType)
-        urlParts = urlsplit(uriComponents["path"])
-        username = None
-        password = None
-        path = uriComponents['databaseName']
-        if path is None:
-            path = urlParts.path
-        sourceConfig.setKey('path', path)
-        if path:
-            sep = path.find('@')
-            length = len(path)
-            if sep == 0:
-                path = path[1:length]
-            elif sep > 0:
-                authentication = path[0:sep]
-                path = path[sep + 1:length]
-                sep = authentication.find('/')
-                length = len(authentication)
-                if sep == 0:
-                    username = authentication[1:length]
-                elif sep > 0:
-                    username = authentication[0:sep]
-                    password = authentication[sep + 1:length]
-        sourceConfig.setKey('username', username)
-        sourceConfig.setKey('password', password)
-        sourceConfig.setKey('databasename', path)
-        tableName = uriComponents['layerName']
-        sourceConfig.setKey('tablename', tableName)
-        if urlParts.hostname:
-            sourceConfig.setKey('hostname', urlParts.hostname)
-        if urlParts.port:
-            sourceConfig.setKey('port', urlParts.port)
-        return sourceConfig
-    # /extractODBCSourceURI
-
-    def extractDatabaseSourceURI(storageType, uriComponents):
-        """Extract database source connection information from a
-        database layer source URI
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :param uriComponents: Data source database URI components.
-        :type uriComponents: QVariantMap
-
-        :returns: layer source URI split into connection components.
-        :rtype: SourceConfig
-        """
-        sourceConfig = SourceConfig()
-        sourceConfig.clearAll()
-        sourceConfig.setKey('databasetype', storageType)
-        try:
-            databaseName = uriComponents['databaseName']
-            sourceConfig.setKey('databasename', databaseName)
-            urlParts = urlsplit(uriComponents['path'])
-            path = urlParts.path
-            sourceConfig.setKey('path', path)
-            if urlParts.username:
-                sourceConfig.setKey('username', urlParts.username)
-            if urlParts.password:
-                sourceConfig.setKey('password', urlParts.password)
-            if urlParts.hostname:
-                sourceConfig.setKey('hostname', urlParts.hostname)
-            if urlParts.port:
-                sourceConfig.setKey('port', urlParts.port)
-            else:
-                sourceConfig.setKey(
-                    'port', Database.defaultPort(storageType.lower()))
-            components = path.split(',')
-            for component in components:
-                if component.find('=') > 0:
-                    c = component.split('=', 1)
-                    sourceConfig.setKey(c[0], c[1])
-        except KeyError:
-            pass
-        return sourceConfig
-    # /extractDatabaseSourceURI
-
-    def extractFileSourceURI(storageType, uriComponents):
-        """Extract database source connection information from a
-        file source URI
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :param uriComponents: Data source database URI components.
-        :type uriComponents: QVariantMap
-
-        :returns: layer source URI split into connection components.
-        :rtype: SourceConfig
-        """
-        sourceConfig = SourceConfig()
-        sourceConfig.clearAll()
-        sourceConfig.setKey('databasetype', storageType)
-        databaseName = uriComponents['path']
-        sourceConfig.setKey('databasename', databaseName)
-        urlParts = urlsplit(uriComponents["path"])
-        path = urlParts.path
-        sourceConfig.setKey('path', path)
-        return sourceConfig
-    # /extractFileSourceURI
-
-    def extractShapeSourceURI(storageType, uriComponents):
-        """Extract database source connection information from a
-        file source URI
-        :param storageType: Data source database type.
-        :type storageType: str, QString
-
-        :param uriComponents: Data source database URI components.
-        :type uriComponents: QVariantMap
-
-        :returns: layer source URI split into connection components.
-        :rtype: SourceConfig
-        """
-
-        # print(f'\tstorageType={storageType}\t{uriComponents}')
-        sourceConfig = SourceConfig()
-        sourceConfig.clearAll()
-        sourceConfig.setKey('databasetype', storageType)
-        try:
-            path = uriComponents['vsiSuffix']
-        except KeyError:
-            path = uriComponents['path']
-        if path:
-            (root, ext) = os.path.splitext(path)
-            (root, file) = os.path.split(root)
-            sourceConfig.setKey('path', file)
-        # print(f'path={path}\troot={root}\tfile={file}\text={ext}')
-        return sourceConfig
-    # /extractShapeSourceURI
 # /Database

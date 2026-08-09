@@ -6,12 +6,12 @@
 import socket
 import importlib.util
 if importlib.util.find_spec("PyQt"):
-    from PyQt import Qt, QDialog, QMessageBox
+    from PyQt import Qt, QDialog
     from ui_linz_schema_login_dialog import Ui_Dialog
     from linz_schema_utilities import MessageBoxes, Utilities
     from linz_schema_database import Database, SourceConfig
 else:
-    from .PyQt import Qt, QDialog, QMessageBox
+    from .PyQt import Qt, QDialog
     from .ui_linz_schema_login_dialog import Ui_Dialog
     from .linz_schema_utilities import MessageBoxes, Utilities
     from .linz_schema_database import Database, SourceConfig

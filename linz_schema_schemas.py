@@ -19,40 +19,12 @@ if importlib.util.find_spec("PyQt"):
     # from PyQt import uic, loadUi
     # from PyQt import QtGui, QtWidgets, QtCore
     from PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        Qt)
 else:
     # from .PyQt import uic, loadUi
     # from .PyQt import QtGui, QtWidgets, QtCore
     from .PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        Qt)
 
 if importlib.util.find_spec("linz_schema_utilities"):
     from linz_schema_utilities import MessageBoxes, Utilities
@@ -61,9 +33,51 @@ else:
     from .linz_schema_utilities import MessageBoxes, Utilities
     from .linz_schema_database import Database, SQLError, ER_DUP_ENTRY
 
+# List of LINZ depricated tables
+# keep as still used:    'nz_roads_organisation'
+DEPRICATED = [
+    'aims_address',
+    'aims_address_class',
+    'aims_address_component',
+    'aims_address_component_type',
+    'aims_address_lifecycle_stage',
+    'aims_address_position',
+    'aims_address_position_type',
+    'aims_address_reference',
+    'aims_address_reference_object_type',
+    'aims_addressable_object',
+    'aims_addressable_object_lifecycle_stage',
+    'aims_addressable_object_type',
+    'aims_addressable_object_external',
+    'aims_alternative_address_type',
+    'aims_organisation',
+    'nz_addresses_pilot',
+    'nz_addresses_roads_pilot',
+    'nz_addresses_road_sections_pilot',
+    'nz_roads_addressing',
+    'nz_roads_addressing_road_name',
+    'nz_roads_address_range_road_type',
+    'nz_roads_capture_method',
+    'nz_roads_geometry_class',
+    'nz_roads_road',
+    'nz_roads_road_section_geometry',
+    'nz_roads_road_name',
+    'nz_roads_road_name_association',
+    'nz_roads_road_name_class',
+    'nz_roads_road_name_prefix',
+    'nz_roads_road_name_suffix',
+    'nz_roads_road_name_type',
+    'nz_roads_road_section',
+    'nz_roads_road_section_lifecycle_stage',
+    'nz_roads_road_section_type',
+    'nz_roads_road_type',
+    'nz_roads_route_name',
+    'nz_roads_subsections_addressing'
+]
+
 
 class Counters():
-    """'Type' definition for database field.
+    """'Type' definition for progress counters.
     """
     READ = 0
     WRITE = 1
@@ -76,10 +90,7 @@ class Counters():
     duplicateCnt = 0
 
     def __init__(self):
-        self.readCnt = 0
-        self.writeCnt = 0
-        self.failCnt = 0
-        self.duplicateCnt = 0
+        self.reset()
 
     def __str__(self):
         return f'Total read : {self.readCnt} ' \
@@ -87,8 +98,12 @@ class Counters():
                f'Total fail : {self.failCnt} ' \
                f'Total duplicate : {self.duplicateCnt}'
 
-    def increment(self, field):
-        match field:
+    def increment(self, key):
+        """Increment a counter.
+        :param key: Counter key to increment.
+        :type key: Int
+        """
+        match key:
             case self.READ:
                 self.readCnt += 1
             case self.WRITE:
@@ -97,10 +112,22 @@ class Counters():
                 self.failCnt += 1
             case self.DUPLICATE:
                 self.duplicateCnt += 1
+
+    def reset(self):
+        """Reset all counters to 0.
+        """
+        self.readCnt = 0
+        self.writeCnt = 0
+        self.failCnt = 0
+        self.duplicateCnt = 0
+    # /reset
 # /Counters
 
 
 class SchemasActions():
+    """Methods class for Schema actions.
+    """
+
     def __init__(self):
         super().__init__()
     # /__init__
@@ -110,6 +137,8 @@ class SchemasActions():
     # /init
 
     def requestSchemaCreate(self, parent, cnx, schemaname, description):
+        """Checks before creating database schema.
+        """
         parent.appendLog(f'requestSchemaCreate {schemaname} : {description}')
         if Database.isSchemaExist(parent, cnx, schemaname):
             if Database.isGISSchemaExist(parent, cnx, schemaname):
@@ -161,6 +190,8 @@ class SchemasActions():
     # /requestSchemaCreate
 
     def createSchema(self, parent, cnx, schemaname, description, new):
+        """Create database geometry schema.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog(f'\nCreating GIS schema "{schemaname}"...')
         if new:
@@ -231,6 +262,8 @@ class SchemasActions():
     # /createSchema
 
     def updateSchema(self, parent, cnx, schemaname, description):
+        """Checks before updating database schema.
+        """
         update = MessageBoxes.messageBox(
             parent,
             MessageBoxes.QUESTION,
@@ -252,6 +285,10 @@ class SchemasActions():
     # /updateSchema
 
     def updateSchemaDefinition(self, parent, cnx, schemaname, description):
+        """Update database schema to include geometry tables.
+           Change schema dataset to utf8.
+           Grant access to schema tables to root user.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog('  update schema description...')
         if description:
@@ -265,7 +302,7 @@ class SchemasActions():
         par = tuple([comment])
         Database.executeSQL(parent, cnx, sql, par, silent=True)
         parent.appendLog('  update schema privilges...')
-        sql = "GRANT select, insert, update, delete, execute " \
+        sql = "GRANT select, insert, update, delete, execute, show view " \
               f"ON {schemaname}.* " \
               "TO root@localhost WITH GRANT OPTION"
         Database.executeSQL(parent, cnx, sql, silent=True)
@@ -315,6 +352,8 @@ class SchemasActions():
     # /updateSchemaDefinition
 
     def updateSchemaPurge(self, parent, cnx, schemaname):
+        """Purge depricated tables from database schema.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog('  purge depricated tables...')
         tables = Database.getTables(parent, cnx, schemaname)
@@ -346,54 +385,18 @@ class SchemasActions():
     # /updateSchemaPurge
 
     def isPurgeTable(self, tablename):
-        purgeTables = [
-            'aims_address',
-            'aims_address_class',
-            'aims_address_component',
-            'aims_address_component_type',
-            'aims_address_lifecycle_stage',
-            'aims_address_position',
-            'aims_address_position_type',
-            'aims_address_reference',
-            'aims_address_reference_object_type',
-            'aims_addressable_object',
-            'aims_addressable_object_lifecycle_stage',
-            'aims_addressable_object_type',
-            'aims_addressable_object_external',
-            'aims_alternative_address_type',
-            'aims_organisation',
-            'nz_addresses_pilot',
-            'nz_addresses_roads_pilot',
-            'nz_addresses_road_sections_pilot',
-            'nz_roads_addressing',
-            'nz_roads_addressing_road_name',
-            'nz_roads_address_range_road_type',
-            'nz_roads_capture_method',
-            'nz_roads_geometry_class',
-            'nz_roads_road',
-            'nz_roads_road_section_geometry',
-            'nz_roads_road_name',
-            'nz_roads_road_name_association',
-            'nz_roads_road_name_class',
-            'nz_roads_road_name_prefix',
-            'nz_roads_road_name_suffix',
-            'nz_roads_road_name_type',
-            'nz_roads_road_section',
-            'nz_roads_road_section_lifecycle_stage',
-            'nz_roads_road_section_type',
-            'nz_roads_road_type',
-            'nz_roads_route_name',
-            'nz_roads_subsections_addressing'
-        ]
-        # keep as still used:    'nz_roads_organisation'
+        """Test if table is depricated by LINZ.
+        """
         if tablename:
             if tablename.endswith('_deprecated'):
                 return True
-            return tablename in purgeTables
+            return tablename in DEPRICATED
         return False
     # /isPurgeTable
 
     def requestSchemaDrop(self, parent, cnx, schemaname):
+        """Checks before deleting database schema.
+        """
         parent.appendLog(f'\nDrop GIS schema {schemaname}')
         if Database.isSchemaExist(parent, cnx, schemaname):
             option = MessageBoxes.messageBox(
@@ -432,6 +435,8 @@ class SchemasActions():
     # /requestSchemaDrop
 
     def dropSchema(self, parent, cnx, schemaname):
+        """Delete database schema.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog(f'Droping schema {schemaname}...')
         sql = f"DROP SCHEMA {schemaname}"
@@ -445,6 +450,8 @@ class SchemasActions():
     # /dropSchema
 
     def requestSchemaLoad(self, parent, cnx, schemaname):
+        """Checks before loading data into database schema.
+        """
         parent.appendLog(f"\nImport CSV data into schema {schemaname}...")
         if Database.isSchemaExist(parent, cnx, schemaname):
             if MessageBoxes.messageBox(
@@ -468,6 +475,8 @@ class SchemasActions():
     # /requestSchemaLoad
 
     def getLoadDirectory(self, parent, cnx, schemaname):
+        """Get most recent load directory to default to.
+        """
         directoryName = None
         sql = f"{Database.getCRUD(2)} dataset_file " \
               f"FROM {schemaname}.table_datasets " \
@@ -482,6 +491,8 @@ class SchemasActions():
     # /getLoadDirectory
 
     def processDirectory(self, parent, cnx, schemaname, directoryName):
+        """Loop through all .zip files in load directory.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog(f"\nLoad zip data files from {directoryName} "
                          f"into schema {schemaname}...")
@@ -489,6 +500,8 @@ class SchemasActions():
             if zipfile.is_zipfile(zipFileName):
                 parent.appendLog(f'\nProcess {zipFileName}...')
                 zip = zipfile.ZipFile(zipFileName, 'r')
+                # loop through all .vrt files found in zip
+                # (i.e. get all tables in a LINZ data set)
                 vrtfiles = Utilities.getVrtFiles(zip)
                 extents = [None, None, None, None]
                 for vrtfile in vrtfiles:
@@ -503,11 +516,7 @@ class SchemasActions():
                     zipDate = self.getZipDate(zip, csvFileName)
                     parent.appendLog(f'    data file\t{vrtpath}{csvFileName}')
                     parent.appendLog(f'    data timestamp\t{zipDate}')
-                    layername = Utilities.getTreeText(
-                        tree, 'OGRVRTLayer', 'name')
-                    tablename = None
-                    if layername:
-                        tablename = layername.lower().replace('-', '_')
+                    (layername, tablename) = self.getLayerTableName(tree)
                     if self.isPurgeTable(tablename):
                         parent.appendLog(
                             f'    \t{tablename} has been depricated '
@@ -545,7 +554,7 @@ class SchemasActions():
                             tree, 'GeometryField', 'field')
                         fields = Utilities.getFields(
                             tree, geometry, geofield, key)
-#                        for field in fields:
+#                        for field in fields:  # debug
 #                            print(f"{field.fieldName} {field.fieldType}")
 
                         parent.appendLog(f'    features\t{fcnt:,}')
@@ -558,7 +567,7 @@ class SchemasActions():
                                 schemaDate = dataset[3]
                                 schemaRows = dataset[4]
                                 schemaElapsed = dataset[5]
-                                self.logSchemaLoad(
+                                self.logSchemaPreLoad(
                                     parent, schemaDate, schemaRows,
                                     schemaElapsed)
                             if self.truncateTable(
@@ -624,7 +633,20 @@ class SchemasActions():
         parent.unsetCursor()
     #  \processDirectory
 
-    def logSchemaLoad(self, parent, schemaDate, schemaRows, schemaElapsed):
+    def getLayerTableName(self, tree):
+        """Get layer and table names.
+        """
+        layername = Utilities.getTreeText(
+            tree, 'OGRVRTLayer', 'name')
+        tablename = None
+        if layername:
+            tablename = layername.lower().replace('-', '_')
+        return (layername, tablename)
+    # /getLayerTableName
+
+    def logSchemaPreLoad(self, parent, schemaDate, schemaRows, schemaElapsed):
+        """Log previous load statistics.
+        """
         if schemaDate:
             parent.appendLog(
                 f'    existing date\t{schemaDate}')
@@ -635,11 +657,13 @@ class SchemasActions():
             t = datetime.timedelta(seconds=schemaElapsed)
             parent.appendLog(
                 f'    previous time\t{t}')
-    # /logSchemaLoad
+    # /logSchemaPreLoad
 
     def loadTable(self, parent, cnx, schemaname, tablename, dataset,
                   fields, geometry, key, append,
                   directoryName, zipFileName, zip, zipDate, csvFileName, fcnt):
+        """Test if data has geometry or not.  Then call load routine.
+        """
         # parent.appendLog(f'\tloadTable {schemaname}.{tablename}')  # debug
         if csvFileName:
             if geometry:
@@ -662,6 +686,8 @@ class SchemasActions():
                             schemaname, tablename, fields, key,
                             append, directoryName, zipFileName, zip, zipDate,
                             csvFileName, fcnt):
+        """Non-geometry data, so load data file directly.
+        """
         # parent.appendLog(
         #     f'    loadTableFileDirect {schemaname}.{tablename}')  # debug
         startTime = Utilities.getNow()
@@ -736,6 +762,8 @@ class SchemasActions():
     def loadTableDirect(self, parent, cnx,
                         schemaname, tablename, fields, key,
                         zipFileName, zipDate, append, uzipFileName, fcnt):
+        """Non-geometry data, so direct load data file with Sql statement.
+        """
         parent.appendLog('    count existing rows')
         appendCnt = self.featureCount(
             parent, cnx, append, schemaname, tablename, key) + 1
@@ -818,6 +846,9 @@ class SchemasActions():
                       schemaname, tablename, fields, geometry, key,
                       append, directoryName, zipFileName, zip, zipDate,
                       csvFileName, fcnt):
+        """Geometry data, so load data file row-by-row.
+           Checks for valid geometry data.
+        """
         # parent.appendLog(f'\tloadTableFile {schemaname}.{tablename}')  # debug
         startTime = Utilities.getNow()
         self.dropIndexes(parent, cnx, schemaname, tablename)
@@ -928,6 +959,8 @@ class SchemasActions():
 
     def insertFeature(self, parent, cnx, cursor, schemaname, tablename,
                       sql, parameters, counters):
+        """Insert geometry row into database table.
+        """
         try:
             # if Database.executeSQL(parent, cnx, sql, parameters, silent=True):
             if Database.executeSqlCursor(parent, cursor, sql, parameters):
@@ -957,6 +990,8 @@ class SchemasActions():
     # /insertFeature
 
     def loadTableFileSql(self, schemaname, tablename, fields):
+        """Build Sql statement to insert geometry row into database table.
+        """
         sql = f"{Database.getCRUD(1)} INTO {schemaname}.{tablename} \n"
         isFirst = True
         for field in fields:
@@ -978,6 +1013,8 @@ class SchemasActions():
     # /loadTableFileSql
 
     def getZipDate(self, zip, csvFileName):
+        """Get data creation date from zip file.
+        """
         zipDate = None
         for fileName in zip.namelist():
             if fileName.endswith(csvFileName):
@@ -988,6 +1025,8 @@ class SchemasActions():
     # /getZipDate
 
     def getTableGeometry(self, parent, cnx, schemaname, tablename, geometry):
+        """Get existing geometry type from database table.
+        """
         if schemaname and tablename:
             sql = "SELECT upper(c.COLUMN_TYPE) AS COLUMN_TYPE " \
                   "FROM information_schema.COLUMNS c " \
@@ -1006,6 +1045,10 @@ class SchemasActions():
     # /getTableGeometry
 
     def getPrjId(self, parent, cnx, schemaname, zip, vrtname):
+        """Get geometry projection from zip file
+           and insert into spatial_ref_sys table if it doesn't already exist.
+           Return the projId of the projection.
+        """
         prjfile = None
         prjText = None
         prjId = None
@@ -1073,6 +1116,8 @@ class SchemasActions():
     def truncateTable(self, parent, cnx,
                       schemaname, tablename, dataset, zipDate,
                       fields, zipFileName):
+        """Drop table from database and remove geometry definitions.
+        """
         if dataset:
             pass
         else:
@@ -1121,6 +1166,8 @@ class SchemasActions():
 
     def createTable(self, parent, cnx,
                     schemaname, tablename, fields, filename):
+        """Create table in database.
+        """
         parent.appendLog(
             f'    create table {schemaname}.{tablename}')
         sql = f"CREATE TABLE IF NOT EXISTS {schemaname}.{tablename}\n"
@@ -1151,6 +1198,8 @@ class SchemasActions():
 
     def setTableGeometry(self, parent, cnx, schemaname, tablename,
                          geometry, extents, prjId, fields):
+        """Add table to geometry definitions.
+        """
         if geometry and prjId:
             shapeField = None
             keyField = None
@@ -1261,6 +1310,8 @@ class SchemasActions():
     # /setTableGeometry
 
     def updateTableGeometry(self, parent, cnx, schemaname, tablename, geometry):
+        """Update geometry definitions with changes to table.
+        """
         sql = f"{Database.getCRUD(2)} TYPE " \
               f"FROM {schemaname}.geometry_columns " \
               "WHERE F_TABLE_SCHEMA=%s " \
@@ -1293,6 +1344,8 @@ class SchemasActions():
     # /updateTableGeometry
 
     def isGeometryExtra(self, parent, cnx, schemaname, tablename):
+        """Test if geometry definitions tables has basic or additional fields.
+        """
         sql = "SELECT count(*) AS cnt " \
               "FROM information_schema.COLUMNS c " \
               "WHERE c.TABLE_SCHEMA=%s " \
@@ -1306,6 +1359,9 @@ class SchemasActions():
 
     def modGeometryType(self, parent, cnx,
                         cnt, geometry, geotype, schemaname, tablename):
+        """Change geometry type for table if 'MULTI...' geometry data found
+           in zip file and was not specified.
+        """
         if geometry == geotype:
             return geometry
         if geometry == 'MULTI' + geotype or geometry == geotype + 'COLLECTION':
@@ -1370,6 +1426,8 @@ class SchemasActions():
     # /modGeometryType
 
     def getKeyValue(self, row, fields):
+        """Get primary key value from row of data.
+        """
         keyValue = None
         for field in fields:
             if field.isKey:
@@ -1377,6 +1435,7 @@ class SchemasActions():
                 if Utilities.isTextField(field.fieldType):
                     keyValue = Utilities.truncateValue(value, field.fieldWidth)
                 elif Utilities.isDateField(field.fieldType):
+                    # hasn't been tested and quotes may not be required.
                     keyValue = "'" + value + "'"
                 else:
                     keyValue = value
@@ -1384,6 +1443,8 @@ class SchemasActions():
     # /getKeyValue
 
     def featureCount(self, parent, cnx, append, schemaname, tablename, key):
+        """Count number of rows in database table
+        """
         if append:
             if key:
                 sql = f"{Database.getCRUD(2)} count({key}) " \
@@ -1399,6 +1460,8 @@ class SchemasActions():
 
     def isFeatureExist(self, parent, cnx, append, appendCnt, readCnt,
                        schemaname, tablename, key, keyValue):
+        """Test if row with primary key value exists in database table.
+        """
         if append:
             if appendCnt > readCnt:
                 return True
@@ -1416,6 +1479,9 @@ class SchemasActions():
     # /isFeatureExist
 
     def getDataset(self, parent, cnx, schemaname, tablename, filename=None):
+        """Retrieve dataset load information from database.
+           Update data filename.
+        """
         sql = f"{Database.getCRUD(2)} " \
               "schemaname, tablename, " \
               "dataset_file, dataset_date, ifnull(dataset_cnt, 0), " \
@@ -1444,6 +1510,8 @@ class SchemasActions():
 
     def setDatasetTable(self, parent, cnx, schemaname, tablename,
                         filename=None, filedate=None, cnt=0, elapsed=None):
+        """Add/update dataset load information in database.
+        """
         sql = f"{Database.getCRUD(2)} schemaname " \
               f"FROM {schemaname}.table_datasets " \
               "WHERE schemaname=%s " \
@@ -1507,6 +1575,8 @@ class SchemasActions():
     # /setDatasetTable
 
     def dropIndexes(self, parent, cnx, schemaname, tablename):
+        """Drop indexes for table from database.
+        """
         parent.appendLog('    drop indexes...')
         sql = "SELECT INDEX_NAME " \
               "FROM information_schema.statistics " \
@@ -1524,6 +1594,8 @@ class SchemasActions():
     # /dropIndexes
 
     def createMissingIndexes(self, parent, cnx, schemaname):
+        """Create indexes in schema for expected indexes on tables.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog(f'\nCreating indexes in {schemaname}...')
         sql = "SELECT c.TABLE_NAME, c.COLUMN_NAME, " \
@@ -1579,6 +1651,8 @@ class SchemasActions():
     # /createMissingIndexes
 
     def createIndexes(self, parent, cnx, schemaname, tablename, fields):
+        """Create indexes on a table.
+        """
         parent.appendLog('    create indexes...')
         for field in fields:
             if Utilities.isGeometryField(field.fieldType):
@@ -1601,6 +1675,8 @@ class SchemasActions():
     # /createIndexes
 
     def processViews(self, parent, cnx, schemaname):
+        """Create views from .sql script.
+        """
         parent.setCursor(Qt.CursorShape.WaitCursor)
         parent.appendLog(f'\nCreating views in {schemaname}...')
         scriptName = 'linz_schema_views.sql'
@@ -1637,6 +1713,8 @@ class SchemasActions():
 
     def processViewsScript(self, parent, cnx,
                            schemaname, sqlFile, zipped=False):
+        """Read create view Sql and dependencies from .sql script.
+        """
         parent.appendLog('Run sql script...')
         try:
             sql = None
@@ -1667,6 +1745,8 @@ class SchemasActions():
     # /processViewsScript
 
     def processViewsScriptSql(self, parent, cnx, schemaname, sql, dependencies):
+        """Execute create view Sql statement, if dependencies exist.
+        """
         sqlT = sql.replace('{schema}', schemaname)
         viewname = Utilities.createViewname(sqlT)
         if Utilities.isDropSql(sqlT):

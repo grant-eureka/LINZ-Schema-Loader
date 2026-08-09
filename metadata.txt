@@ -6,7 +6,7 @@ version=1.06.05
 qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 supportsQt6=True
-description=QGIS Plugin to load New Zealand LINZ Data Service *.csv export data files directly into a MariaDB/MySQL database and create GIS layers and relationships.
+description=QGIS Plugin/App to load New Zealand LINZ Data Service *.csv export data files directly into a MariaDB/MySQL database and create GIS map layers, relationships and styles for a full standalone off-line GIS mapping system for New Zealand.
 
 about=QGIS Plugin/Standalone App to manage a local MariaDB/MySQL database with New Zealand LINZ data.
   Options for database schema management, importing (*.csv) GIS data files, creating indexes and some predefined database views.
@@ -26,11 +26,15 @@ repository=https://plugins.qgis.org/
 changelog=
   1.06.05
     Security update to prevent SQL Injection attacks with Python.
-    MySQL connector Python module calls corrected.
+    Data insert now makes the use of prepared Sql statements.
+    MySQL connector Python module calls updated.
     Remove support for Python module pymysql.
     Warnings now given for first 15 duplicates skipped on table load.
     Add more parameter checks for None values.
     Remove unused methods from classes.
+    Move QGIS specific classes out of database.py and utilities.py into linz_schema_qgis.py
+    Remove useEstimatedMetadata option from created data source layers as it is not supported for MySql/MariaDB.
+    Additional relationships added from LINZ.
     More documentation.
   1.06.04
     Security update to prevent SQL Injection attacks with Python.

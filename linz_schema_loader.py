@@ -14,40 +14,28 @@ if importlib.util.find_spec("PyQt"):
     # from PyQt import uic, loadUi
     # from PyQt import QtGui, QtWidgets, QtCore
     from PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        pyqt,
+        Qt,
+        QFont,
+        QApplication,
+        QMainWindow,
+        QMessageBox,
+        QLayout,
+        QAction,
+        QTextCursor)
 else:
     # from .PyQt import uic, loadUi
     # from .PyQt import QtGui, QtWidgets, QtCore
     from .PyQt import (
-        pyqt, QObject, QCoreApplication, QSettings,
-        Qt, QSize, QRect, QMetaObject,
-        Signal, Slot,
-        QIcon, QPixmap, QImage, QFont,
-        QApplication, QMainWindow, QWidget, QFrame,
-        QDialog, QMessageBox, QFileDialog,
-        QLayout, QFormLayout, QGridLayout,
-        QVBoxLayout, QHBoxLayout,
-        QSizePolicy, QSpacerItem,
-        QAbstractItemView, QAbstractScrollArea, QScrollArea,
-        QLabel, QLineEdit, QPlainTextEdit,
-        QPushButton, QToolButton, QListWidget, QListWidgetItem,
-        QProgressBar, QMenuBar, QStatusBar,
-        QMenu, QAction,
-        QDomDocument, QDomElement, QTextCursor)
+        pyqt,
+        Qt,
+        QFont,
+        QApplication,
+        QMainWindow,
+        QMessageBox,
+        QLayout,
+        QAction,
+        QTextCursor)
 
 if importlib.util.find_spec("linz_schema_utilities"):
     from linz_schema_utilities import MessageBoxes, Utilities
@@ -70,16 +58,14 @@ else:
 
 if importlib.util.find_spec("qgis"):
     from qgis.core import QgsApplication
-    # from qgis.core import QgsSettings
     from qgis.gui import QgsMapCanvas
-    # from qgis.analysis import QgsNativeAlgorithms
     import qgis.utils
     HAS_QGIS = True
 else:
     if importlib.util.find_spec("linz_schema_utilities"):
-        from linz_schema_utilities import NullClass as QgsMapCanvas
+        from linz_schema_qgis import NullClass as QgsMapCanvas
     else:
-        from .linz_schema_utilities import NullClass as QgsMapCanvas
+        from .linz_schema_qgis import NullClass as QgsMapCanvas
     HAS_QGIS = False
 
 SCHEMAS = [
@@ -103,6 +89,9 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             which provides the hook by which you can manipulate the QGIS
             application at run time.
         :type iface: QgsInterface
+
+        :param app: Calling application.
+        :type app: QgsApplication or QApplication
         """
         # print(f'__init__ {self.__class__.__name__}')
         self.app = app
@@ -149,9 +138,11 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         self.ui.RemainderLabel.setStyleSheet(statusStyle)
         # save QMessageBox standard buttons to use in other dialogs
         self.msgBox = QMessageBox()
-        self.msgBox.setStandardButtons(
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel |
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        b = QMessageBox.StandardButton.Ok | \
+            QMessageBox.StandardButton.Cancel | \
+            QMessageBox.StandardButton.Yes | \
+            QMessageBox.StandardButton.No
+        self.msgBox.setStandardButtons(b)
         self.standardOkButton = self.msgBox.button(
             QMessageBox.StandardButton.Ok)
         self.standardCancelButton = self.msgBox.button(
@@ -164,6 +155,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /__init__
 
     def init(self):
+        """Initialize application.
+        """
         # print(f'init {self.__class__.__name__}')
         self.readStatus(None)
         self.setMenuEnabled()
@@ -181,10 +174,26 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
                     MessageBoxes.WARNING,
                     Utilities.getApptitle(self),
                     msg)
-#        quit = self.connectDB()
+        # quit = self.connectDB()
     # /init
 
+    def initSchemasActions(self):
+        """Initialize SchemasActions class.
+        """
+        if not self.schemasActions:
+            self.schemasActions = SchemasActions()
+    # /initSchemasActions
+
+    def initFeaturesActions(self):
+        """Initialize FeaturesActions class.
+        """
+        if not self.featuresActions:
+            self.featuresActions = FeaturesActions()
+    # /initFeaturesActions
+
     def connectSignalSlots(self):
+        """Connect methods to menu options.
+        """
         self.ui.actionExit.triggered.connect(
             self.doActionExit)
         self.ui.actionConnect.triggered.connect(
@@ -217,7 +226,45 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             self.doActionHelp)
     # /connectSignalSlots
 
+    def disconnectSignalSlots(self):
+        """Disconnect methods from menu options.
+        """
+        self.ui.actionExit.triggered.disconnect(
+            self.doActionExit)
+        self.ui.actionConnect.triggered.disconnect(
+            self.doActionConnect)
+        self.ui.actionSelectSchema.triggered.disconnect(
+            self.doActionSelectSchema)
+        self.ui.actionCreateSchema.triggered.disconnect(
+            self.doActionCreateSchema)
+        self.ui.actionUpdateSchema.triggered.disconnect(
+            self.doActionUpdateSchema)
+        self.ui.actionDropSchema.triggered.disconnect(
+            self.doActionDropSchema)
+        self.ui.actionLoadcsvData.triggered.disconnect(
+            self.doActionLoadcsvData)
+        self.ui.actionCreateIndexes.triggered.disconnect(
+            self.doActionCreateIndexes)
+        self.ui.actionCreateViews.triggered.disconnect(
+            self.doActionCreateViews)
+        self.ui.actionCreateLayers.triggered.disconnect(
+            self.doActionCreateLayers)
+        self.ui.actionCreateRelations.triggered.disconnect(
+            self.doActionCreateRelations)
+        self.ui.actionLoadLayerStyles.triggered.disconnect(
+            self.doActionLoadLayerStyles)
+        self.ui.actionCreateTopoStyles.triggered.disconnect(
+            self.doActionCreateTopoStyles)
+        self.ui.actionAbout.triggered.disconnect(
+            self.doActionAbout)
+        self.ui.actionHelp.triggered.disconnect(
+            self.doActionHelp)
+    # /disconnectSignalSlots
+
     def setMenuEnabled(self):
+        """Enable/disable menu options dependant on database connection and
+           found qgis modules.
+        """
         self.ui.menuBar.setStyleSheet(
             "background-color: rgb(239, 240, 241); "
             "color: rgb(0, 0, 0); "
@@ -352,12 +399,15 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /setMenuEnabled
 
     def doActionExit(self):
+        """Exit application menu action.
+        """
         print(f'Closing {self.__class__.__name__}')
         self.close()
     # /doActionExit
 
-    # Cleanup before attribute table window closes
     def cleanupWhenWindowClosed(self):
+        """Cleanup and exit application.
+        """
         Database.disconnectDatabase(self, self.cnx)
         self.appendLog('\nDisconnected from database')
         self.appendLog('Process LINZ Schema finished')
@@ -365,6 +415,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             if not self.logFile.closed:
                 self.logFile.close()
             self.setLog(False)
+        self.disconnectSignalSlots()
         if HAS_QGIS:
             if isinstance(self.app, QgsApplication):
                 self.app.exitQgis()
@@ -374,10 +425,14 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /cleanupWhenWindowClosed
 
     def closeEvent(self, event):
+        """Call cleanup and exit routine.
+        """
         self.cleanupWhenWindowClosed()
     # /closeEvent
 
     def doActionConnect(self):
+        """Connect to database menu action.
+        """
         cont = self.connectDB()
         if cont:
             cont = self.selectSchema()
@@ -388,22 +443,16 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionConnect
 
     def doActionSelectSchema(self):
+        """Select schema menu action.
+        """
         self.selectSchema()
         self.setMenuEnabled()
         self.appendLog('\nSelect option from menu...')
     # /doActionSelectSchema
 
-    def initSchemasActions(self):
-        if not self.schemasActions:
-            self.schemasActions = SchemasActions()
-    # /getSchemasActions
-
-    def initFeaturesActions(self):
-        if not self.featuresActions:
-            self.featuresActions = FeaturesActions()
-    # /initFeaturesActions
-
     def doActionCreateSchema(self):
+        """Create schema menu action.
+        """
         self.initSchemasActions()
         if self.checkUsername(self.sourceConfig, True):
             if self.schema:
@@ -428,6 +477,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionCreateSchema
 
     def doActionUpdateSchema(self):
+        """Update schema menu action.
+        """
         self.initSchemasActions()
         if self.checkUsername(self.sourceConfig, True):
             self.schemasActions.updateSchema(
@@ -435,6 +486,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionUpdateSchema
 
     def doActionDropSchema(self):
+        """Drop schema menu action.
+        """
         self.initSchemasActions()
         if self.checkUsername(self.sourceConfig, True):
             self.schemasActions.requestSchemaDrop(
@@ -443,6 +496,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionDropSchema
 
     def doActionLoadcsvData(self):
+        """Load .csv data menu action.
+        """
         self.initSchemasActions()
         if self.checkUsername(self.sourceConfig, True):
             self.schemasActions.requestSchemaLoad(
@@ -450,6 +505,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionLoadcsvData
 
     def doActionCreateIndexes(self):
+        """Create indexes menu action.
+        """
         self.initSchemasActions()
         if self.checkUsername(self.sourceConfig, True):
             self.schemasActions.createMissingIndexes(
@@ -457,6 +514,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionCreateIndexes
 
     def doActionCreateViews(self):
+        """Create views menu action.
+        """
         self.initSchemasActions()
         if self.checkUsername(self.sourceConfig, True):
             self.schemasActions.processViews(
@@ -464,6 +523,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionCreateViews
 
     def doActionCreateLayers(self):
+        """Create layers menu action.
+        """
         self.initFeaturesActions()
         if self.checkUsername(self.sourceConfig, False):
             self.featuresActions.processLayers(
@@ -471,6 +532,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionCreateLayers
 
     def doActionCreateRelations(self):
+        """Create relationships menu action.
+        """
         self.initFeaturesActions()
         if self.checkUsername(self.sourceConfig, False):
             self.featuresActions.processRelations(
@@ -478,6 +541,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionCreateRelations
 
     def doActionLoadLayerStyles(self):
+        """Load layer styles menu action.
+        """
         self.initFeaturesActions()
         if self.schema:
             schema = self.schema[0]
@@ -488,6 +553,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionLoadLayerStyles
 
     def doActionCreateTopoStyles(self):
+        """Create topo styles menu action.
+        """
         self.initFeaturesActions()
         if self.schema:
             schema = self.schema[0]
@@ -498,6 +565,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionCreateTopoStyles
 
     def doActionAbout(self):
+        """Help about menu action.
+        """
         version = Utilities.getMetadata(
             self.metadata, 'general', 'version')
         author = Utilities.getMetadata(
@@ -568,6 +637,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /doActionAbout
 
     def doActionHelp(self):
+        """Help menu action.
+        """
         help = Utilities.readHelpFile(self)
         self.helpLog(help)
     # /doActionHelp
@@ -584,7 +655,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             status_tip=None,
             whats_this=None,
             parent=None):
-        """Add a toolbar icon to the toolbar.
+        """Add a toolbar icon to the QGIS GUI.
 
         :param icon_path: Path to the icon for this action. Can be a resource
             path (e.g. ':/plugins/foo/bar.png') or a normal file system path.
@@ -647,7 +718,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /add_action
 
     def initGui(self):
-        # Create the menu entries and toolbar icons inside the QGIS GUI.
+        """Create this plugin menu entry and toolbar icon in the QGIS GUI.
+        """
         # print(f'initGUI {self.__class__.__name__}')
         self.setLog(False)
         self.add_action(
@@ -661,6 +733,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /initGui
 
     def callGui(self):
+        """Call the application as a  QGIS plugin.
+        """
         # print(f'callGUI {self.__class__.__name__}')
         if self.logFile is None:
             self.setLog(True)
@@ -675,6 +749,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /callGui
 
     def unload(self):
+        """Remove this plugin menu entries and toolbar icons from the QGIS GUI.
+        """
         # Removes the plugin menu item and icon from QGIS GUI.
         for action in self.actions:
             self.iface.removePluginDatabaseMenu(
@@ -686,6 +762,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /unload
 
     def connectDB(self):
+        """Connect to database.
+        """
         self.appendLog('\nConnect to MariaDB/MySQL database...')
         dlg = LoginDialog(self)
         if dlg.exec():
@@ -710,7 +788,9 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /connect
 
     def selectSchema(self):
-        self.getGISschemas()
+        """Select database schema.
+        """
+        Database.getGISschemas(self, self.cnx, SCHEMAS)
         self.appendLog('\nSelect GIS Schema...')
         dlg = SchemaSelectionDialog(self, SCHEMAS, self.schemaId)
         if dlg.exec():
@@ -723,51 +803,9 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         return False
     # /selectSchema
 
-    def getGISschemas(self):
-        sql = f"{Database.getCRUD(2)} " \
-              "s.SCHEMA_NAME, s.SCHEMA_COMMENT, count(t.TABLE_NAME)\n" \
-              "FROM information_schema.TABLES t\n" \
-              "INNER JOIN information_schema.schemata s " \
-              "ON t.TABLE_SCHEMA=s.SCHEMA_NAME\n" \
-              "WHERE (s.SCHEMA_NAME like '%gis%' " \
-              " OR s.SCHEMA_NAME like '%geo%' " \
-              " OR lower(t.TABLE_NAME) in " \
-              "  ('geometry_columns', 'spatial_ref_sys', 'table_datasets')) " \
-              "AND s.SCHEMA_NAME not in ("
-        for schema in SCHEMAS:
-            sql += "%s, "
-        sql += \
-            "'information_schema', 'performance_schema', 'sys', " \
-            "'mysql', 'bin_log') " \
-            "\nGROUP BY s.SCHEMA_NAME, s.SCHEMA_COMMENT " \
-            "\nORDER BY count(t.TABLE_NAME) desc, s.SCHEMA_NAME asc"
-        s = []
-        for schema in SCHEMAS:
-            s.append(schema[0])
-        par = tuple(s)
-        schemas = Database.readDatabase(self, self.cnx, sql, par)
-        if schemas:
-            for schema in schemas:
-                SCHEMAS.append([schema[0], schema[1]])
-    # / getGISschemas
-
-    """
-    def getFid(self, schemaname, tablename, fields):
-        fidName = None
-        for field in fields:
-            if field.fieldSrc == "1":
-                fidName = field.fieldName
-        if fidName:
-            sql = f"{Database.getCRUD(2)} ifnull(max({fidName}), 0) " \
-                  f"FROM {schemaname}.{tablename}"
-            fid = Database.readDatabaseResult(self, self.cnx, sql)
-        else:
-            fid = 0
-        return fid
-    # /getFid
-    """
-
     def readStatus(self, layer, startTime=None, fcnt=0, readCnt=0):
+        """Display process rate in status bar.
+        """
         if layer:
             if (readCnt < 2000 and (readCnt % 100) == 0) \
                or (readCnt % 1000) == 0 \
@@ -791,6 +829,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /readStatus
 
     def loadDatasetTable(self, schemaname):
+        """Load table_datasets table with pre-existing GIS tables.
+        """
         sql = f"{Database.getCRUD(1)} INTO {schemaname}.table_datasets\n" \
               "(schemaname, tablename, dataset_cnt)\n" \
               f"{Database.getCRUD(2)} " \
@@ -810,6 +850,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /loadDatasetTable
 
     def clearDatasetTable(self, schemaname, tablename=None):
+        """Delete records from table_datasets table.
+        """
         if schemaname:
             pars = [schemaname]
             sql = f"{Database.getCRUD(4)} " \
@@ -833,6 +875,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         # /clearDatasetTable
 
     def tableDefinition(self, schemaname, tablename):
+        """Get table definition from database.
+        """
         sql = f"{Database.getCRUD(2)} " \
             "c.ORDINAL_POSITION AS ORDINAL_POSITION, " \
             "c.COLUMN_NAME AS COLUMN_NAME, " \
@@ -862,11 +906,15 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /tableDefinition
 
     def setConnection(self, sourceConfig, cnx):
+        """Save database connection.
+        """
         self.sourceConfig = sourceConfig
         self.cnx = cnx
     # /setConnection
 
     def checkUsername(self, sourceConfig, rootRequired=True):
+        """Check username given and give appropriate warnings.
+        """
         if sourceConfig:
             username = sourceConfig.get('username')
             if username:
@@ -907,6 +955,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /checkUsername
 
     def setSchemaId(self, schemaId):
+        """Save selected schema index.
+        """
         if schemaId is None:
             self.schemaId = -1
             self.schema = None
@@ -919,6 +969,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /setSchemaId
 
     def setNewSchema(self, schema):
+        """Add new schema to list of schemas.
+        """
         if schema is None:
             self.schemaId = -1
             self.schema = None
@@ -932,10 +984,14 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /setSchemaId
 
     def setRecentPath(self, recentPath):
+        """Save QGIS most recent save project path.
+        """
         self.recentPath = recentPath
     # /setRecentPath
 
     def setLog(self, init=True):
+        """Initialize log file.
+        """
         if init:
             name = self.__class__.__name__
             self.logFilename = os.path.join(
@@ -966,10 +1022,14 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /setLog
 
     def getLog(self):
+        """Get current log.
+        """
         return self.log
     # /getLog
 
     def appendLog(self, text, replace=False):
+        """Append text to log.
+        """
         if self.log:
             if self.lastlog and replace:
                 self.log = self.log.removesuffix(self.lastlog) + text + "\n"
@@ -1004,6 +1064,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /appendLog
 
     def helpLog(self, text):
+        """Display help document as log.
+        """
         self.ui.logField.clear()
         self.ui.logField.appendHtml(text)
         self.ui.logField.moveCursor(
@@ -1013,10 +1075,14 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /helpLog
 
     def getAppname(self):
+        """Get aPython application class name.
+        """
         return self.__class__.__name__
     # /getAppname
 
     def refresh(self, container):
+        """Refresh application window.
+        """
         for widget in container.children():
             if isinstance(widget, QLayout) \
                or isinstance(widget, QAction):
@@ -1028,6 +1094,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     # /refresh
 
     def run(self=None):
+        """Run application.
+        """
         (root, file) = os.path.split(__file__)
         if HAS_QGIS:
             try:
