@@ -1670,7 +1670,7 @@ class SchemasActions():
                                  f'\t{Utilities.getNowString()}...')
                 sql = f"ALTER TABLE {schemaname}.{tablename}\n" \
                       f"ADD INDEX ({field.fieldName})"
-                Database.executeSQL(parent, cnx, sql, silent=True)
+                Database.executeSQL(parent, cnx, sql, silent=False)
         parent.appendLog('    created indexes')
     # /createIndexes
 

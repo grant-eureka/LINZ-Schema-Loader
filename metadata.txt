@@ -2,7 +2,7 @@
 
 [general]
 name=LINZ Schema Loader
-version=1.06.05
+version=1.06.06
 qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 supportsQt6=True
@@ -24,6 +24,8 @@ tracker=https://github.com/grant-eureka/LINZ-Schema-Loader
 repository=https://plugins.qgis.org/
 
 changelog=
+  1.06.06
+    Additional default index creation included.
   1.06.05
     Security update to prevent SQL Injection attacks with Python.
     Data insert now makes the use of prepared Sql statements.

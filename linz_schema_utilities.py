@@ -525,8 +525,17 @@ class Utilities():
            name == 'LEGAL_DESCRIPTION' or \
            name == 'FULL_ROAD_NAME' or \
            name == 'ROAD_NAME' or \
+           name == 'ROAD_NAME_LABEL' or \
+           name == 'ROAD_NAME_BODY' or \
+           name == 'SECONDARY_ROAD_NAME' or \
+           name == 'HWAY_NUM' or \
            name == 'MAJOR_NAME' or \
            name == 'ADDITIONAL_NAME' or \
+           name == 'SUBURB_LOCALITY' or \
+           name == 'TOWN_CITY' or \
+           name == 'APPELLATION' or \
+           name == 'VALUATION_NO_ASSESSMENT' or \
+           name == 'ORGANISATION_VALUE' or \
            name == 'TERRITORIAL_AUTHORITY':
             return True
         return False
