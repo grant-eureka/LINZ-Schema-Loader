@@ -483,6 +483,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         if self.checkUsername(self.sourceConfig, True):
             self.schemasActions.updateSchema(
                 self, self.cnx, self.schema[0], self.schema[1])
+            self.schemasActions.createMissingIndexes(
+                self, self.cnx, self.schema[0])
     # /doActionUpdateSchema
 
     def doActionDropSchema(self):

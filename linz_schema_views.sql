@@ -205,19 +205,18 @@ LEFT OUTER JOIN {schema}.nz_properties_perspective pp ON pp.unit_of_property_id 
 
 --DEPENDENCIES--{nz_properties_unit_of_property nz_properties_property_title_reference nz_properties_property_address_reference nz_properties_property_building_reference nz_building_outlines_all_sources}
 CREATE OR REPLACE VIEW {schema}.properties_buildings_vw as
-SELECT u.unit_of_property_id, u.property_name,
+SELECT pbr.unit_of_property_id, u.property_name,
  tr.title_no,
  par.address_id,
  pbr.building_id,
  b.name, b.uses building_use, b.suburb_locality, b.town_city, b.territorial_authority,
   b.capture_method, b.capture_source_id, b.capture_source_name, b.capture_source_from, b.capture_source_to,
   b.building_outline_lifecycle, b.begin_lifespan,  b.end_lifespan, b.last_modified
-FROM {schema}.nz_properties_unit_of_property u
-INNER JOIN {schema}.nz_properties_property_building_reference pbr ON pbr.unit_of_property_id = u.unit_of_property_id
+FROM {schema}.nz_properties_property_building_reference pbr
+INNER JOIN {schema}.nz_properties_unit_of_property u ON u.unit_of_property_id = pbr.unit_of_property_id
 INNER JOIN {schema}.nz_building_outlines_all_sources b ON b.building_id = pbr.building_id
 LEFT OUTER JOIN {schema}.nz_properties_property_title_reference tr ON tr.unit_of_property_id = u.unit_of_property_id 
 LEFT OUTER JOIN {schema}.nz_properties_property_address_reference par ON par.unit_of_property_id = u.unit_of_property_id
-WHERE b.building_outline_lifecycle = 'Current'
 ;
 
 --DEPENDENCIES--{nz_properties_unit_of_property nz_properties_national_district_valuation_roll nz_properties_ownership nz_properties_zoning nz_properties_building_age nz_properties_mass_contour nz_properties_mass_view nz_properties_mass_scope_of_view nz_properties_mass_decks nz_properties_mass_workshop_or_laundry nz_properties_mass_other_improvements}

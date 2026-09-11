@@ -279,6 +279,7 @@ class SchemasActions():
         parent.appendLog(f'\nUpdating schema {schemaname}...')
         if update == MessageBoxes.YES.value:
             self.updateSchemaDefinition(parent, cnx, schemaname, description)
+            self.updateSchemaTables(parent, cnx, schemaname)
         if purge == MessageBoxes.YES.value:
             self.updateSchemaPurge(parent, cnx, schemaname)
         parent.appendLog(f'Updated schema {schemaname}')
@@ -384,6 +385,22 @@ class SchemasActions():
                 msg)
     # /updateSchemaPurge
 
+    def updateSchemaTables(self, parent, cnx, schemaname):
+        """Update database schema tables.
+           Change building_id to Integer.
+        """
+        parent.setCursor(Qt.CursorShape.WaitCursor)
+        parent.appendLog('  update schema tables...')
+        parent.appendLog(
+            '      update nz_properties_property_building_reference...')
+        sql = "ALTER TABLE IF EXISTS " \
+              f"{schemaname}.nz_properties_property_building_reference \n" \
+              "MODIFY COLUMN IF EXISTS " \
+              " building_id INTEGER"
+        Database.executeSQL(parent, cnx, sql, silent=True)
+        parent.unsetCursor()
+    # /updateSchemaTables
+
     def isPurgeTable(self, tablename):
         """Test if table is depricated by LINZ.
         """
@@ -459,9 +476,9 @@ class SchemasActions():
                MessageBoxes.QUESTION,
                Utilities.getApptitle(parent),
                f'Load LINZ dataset files into schema "{schemaname}"?\n\n'
-               'It is recommended to disable "sleep" mode,\n'
+               'Disable "sleep/hibernate" modes,\n'
                'in system power management settings,\n'
-               'for large data loads.',
+               'for large data loads (i.e. Server Mode).',
                MessageBoxes.YES_NO) == MessageBoxes.YES.value:
                 directoryName = self.getLoadDirectory(parent, cnx, schemaname)
                 if directoryName:
@@ -1646,6 +1663,11 @@ class SchemasActions():
                 sql = f"ALTER TABLE {schemaname}.{field[0]}\n" \
                       f"ADD INDEX ({field[1]})"
                 Database.executeSQL(parent, cnx, sql, silent=True)
+            parent.appendLog(f'    anaylse indexes on {field[0].ljust(40)}'
+                             f'  {Utilities.getNowString()}...')
+            # sql = f"OPTIMIZE TABLE {schemaname}.{field[0]})"
+            sql = f"ANALYZE TABLE {schemaname}.{field[0]}"
+            Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog(f'Created indexes in {schemaname}')
         parent.unsetCursor()
     # /createMissingIndexes

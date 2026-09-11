@@ -377,7 +377,9 @@ class Utilities():
                 if not hasIntKey:
                     f = source.attrib.get('name')
                     t = Utilities.fieldTypeTranslate(
-                        source.attrib.get('type'), source.attrib.get('width'))
+                        f,
+                        source.attrib.get('type'),
+                        source.attrib.get('width'))
                     if (f == key) and t == 'INTEGER':
                         hasIntKey = True
             if hasIntKey:
@@ -391,7 +393,9 @@ class Utilities():
             f = source.attrib.get('name')
             s = source.attrib.get('src')
             t = Utilities.fieldTypeTranslate(
-                source.attrib.get('type'), source.attrib.get('width'))
+                f,
+                source.attrib.get('type'),
+                source.attrib.get('width'))
             w = Utilities.fieldSizeTranslate(f, t, source.attrib.get('width'))
             k = (f == key)
             f = Utilities.fieldNameTranslate(f)
@@ -399,8 +403,11 @@ class Utilities():
         return fields
     # /getFields
 
-    def fieldTypeTranslate(fieldType, width):
+    def fieldTypeTranslate(fieldName, fieldType, width):
         """Convert LINZ field type to database specific types.
+        :param fieldName: LINZ GIS field name.
+        :type fieldName: Str
+
         :param fieldType: LINZ GIS field type.
         :type fieldType: Str
 
@@ -411,6 +418,9 @@ class Utilities():
         :rtype: Str
         """
         if fieldType:
+            if fieldName.lower() == 'building_id' and \
+               fieldType.upper() == 'STRING':
+                return 'INTEGER'
             fieldType = fieldType.upper().replace('CHARACTER VARYING', 'TEXT') \
                 .replace('STRING', 'VARCHAR') \
                 .replace('INTEGER64', 'BIGINT') \

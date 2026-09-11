@@ -25,7 +25,10 @@ repository=https://plugins.qgis.org/
 
 changelog=
   1.06.06
-    Additional default index creation included.
+    Additional default index creation included. It is recommended to "Create Indexes" to update your schema.
+    "Create Indexes" now analyses each table to gather index statistics.
+    Update view definitions for performance.
+    Convert "building_id" fields to Integer when defined as String.
   1.06.05
     Security update to prevent SQL Injection attacks with Python.
     Data insert now makes the use of prepared Sql statements.
