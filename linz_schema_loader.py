@@ -634,7 +634,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         MessageBoxes.messageBox(
             self,
             MessageBoxes.INFORMATION,
-            f'About: {Utilities.getApptitle(self)}',
+            f'{Utilities.getApptitle(self)} : About',
             env, MessageBoxes.OK, icon)
     # /doActionAbout
 
