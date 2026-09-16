@@ -29,6 +29,7 @@ changelog=
     "Create Indexes" now analyses each table to gather index statistics.
     Update view definitions for performance.
     Convert "building_id" fields to Integer when defined as String.
+    Fix bug with menu options not reactivated when re-starting QGIS plugin.
   1.06.05
     Security update to prevent SQL Injection attacks with Python.
     Data insert now makes the use of prepared Sql statements.

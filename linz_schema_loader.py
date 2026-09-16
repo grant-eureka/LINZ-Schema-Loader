@@ -97,6 +97,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         self.app = app
         self.metadata = Utilities.readMetadata(self)
         self.recentPath = None
+        self.triggers = False
         # Save reference to the QGIS interface
         if iface:
             super(linz_schema_loader, self).__init__()
@@ -194,6 +195,9 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     def connectSignalSlots(self):
         """Connect methods to menu options.
         """
+        if self.triggers:
+            return
+        self.triggers = True
         self.ui.actionExit.triggered.connect(
             self.doActionExit)
         self.ui.actionConnect.triggered.connect(
@@ -259,6 +263,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
             self.doActionAbout)
         self.ui.actionHelp.triggered.disconnect(
             self.doActionHelp)
+        self.triggers = False
     # /disconnectSignalSlots
 
     def setMenuEnabled(self):
@@ -737,7 +742,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     def callGui(self):
         """Call the application as a  QGIS plugin.
         """
-        # print(f'callGUI {self.__class__.__name__}')
+        print(f'callGUI {self.__class__.__name__}')
         if self.logFile is None:
             self.setLog(True)
         elif self.logFile.closed:
@@ -746,6 +751,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
         if self.mainWindow is None:
             self.setWindowIcon(icon)
         self.refresh(self)
+        self.connectSignalSlots()
         self.activateWindow()
         self.show()
     # /callGui
