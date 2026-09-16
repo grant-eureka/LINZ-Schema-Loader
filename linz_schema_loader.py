@@ -742,7 +742,7 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
     def callGui(self):
         """Call the application as a  QGIS plugin.
         """
-        print(f'callGUI {self.__class__.__name__}')
+        # print(f'callGUI {self.__class__.__name__}')
         if self.logFile is None:
             self.setLog(True)
         elif self.logFile.closed:
