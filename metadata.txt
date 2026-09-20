@@ -2,7 +2,7 @@
 
 [general]
 name=LINZ Schema Loader
-version=1.06.06
+version=1.06.07
 qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 supportsQt6=True
@@ -24,6 +24,9 @@ tracker=https://github.com/grant-eureka/LINZ-Schema-Loader
 repository=https://plugins.qgis.org/
 
 changelog=
+  1.06.07
+    Additional default index creation included. It is recommended to "Create Indexes" to update your schema.
+    Creating relations now includes layers of esri shapefiles and gpx files if a known relationship exists. 
   1.06.06
     Additional default index creation included. It is recommended to "Create Indexes" to update your schema.
     "Create Indexes" now analyses each table to gather index statistics.

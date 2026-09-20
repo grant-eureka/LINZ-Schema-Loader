@@ -457,18 +457,15 @@ class FeaturesActions():
                 if cnt > 0:
                     primaryTable = row[0]
                     primaryLayers = self.getTableLayers(
-                        "mysql", schemaname, primaryTable)
+                        "mysql", schemaname, primaryTable, True)
                     primaryField = row[1]
-                    isPrimaryTable = Database.isTableExist(
-                        parent, cnx, schemaname, primaryTable)
+                    # isPrimaryTable = Database.isTableExist(
+                    #     parent, cnx, schemaname, primaryTable)
                     refTable = row[2]
                     refLayers = self.getTableLayers(
-                        "mysql", schemaname, refTable)
+                        "mysql", schemaname, refTable, True)
                     refField = row[3]
-                    isRefTable = Database.isTableExist(
-                        parent, cnx, schemaname, refTable)
-                    if len(primaryLayers) > 0 and isPrimaryTable and \
-                       len(refLayers) > 0 and isRefTable:
+                    if len(primaryLayers) > 0 and len(refLayers) > 0:
                         for primaryLayer in primaryLayers:
                             for refLayer in refLayers:
                                 if self.isRelationExist(
@@ -515,8 +512,6 @@ class FeaturesActions():
         """
         # for existingRelation in existingRelations:
         #     print(existingRelation)
-        # print(f"    {primaryLayer.name()}, {primaryField}, "
-        #       f"{refLayer.name()}, {refField}")
         for relation in existingRelations:
             if relation.primaryLayer == primaryLayer.name() and \
                relation.primaryField == primaryField and \
@@ -531,7 +526,7 @@ class FeaturesActions():
         return False
     # /isRelationExist
 
-    def getRelations(self, parent, schemaname):
+    def getRelations(self, parent, schemaname, dbf=False):
         """Read existing relations from QGIS project.
         """
         #   Get existing relations
@@ -546,56 +541,56 @@ class FeaturesActions():
             kStorageType = relation.referencedLayer().storageType()
             vStorageType = relation.referencingLayer().storageType()
             # parent.appendLog(f'referencedLayer type {storageType}')  # debug
-            isDatabase = QGISUtilities.isDatabase(kStorageType) \
-                and QGISUtilities.isDatabase(vStorageType) \
-                and kStorageType == vStorageType
-            if isDatabase:
-                layers = QgsProject.instance().mapLayersByName(
-                    relation.referencedLayer().name())
-                if layers:
-                    primaryLayer = layers[0]
-                uriComponents = QgsProviderRegistry.instance().decodeUri(
-                    primaryLayer.dataProvider().name(),
-                    primaryLayer.source())
+            layers = QgsProject.instance().mapLayersByName(
+                relation.referencedLayer().name())
+            if layers:
+                primaryLayer = layers[0]
+            uriComponents = QgsProviderRegistry.instance().decodeUri(
+                primaryLayer.dataProvider().name(),
+                primaryLayer.source())
+            if QGISUtilities.isDatabase(kStorageType):
                 sourceConfig = QGISUtilities.extractDatabaseSourceURI(
                     kStorageType,
                     uriComponents)
-                primaryTable = sourceConfig.get("tablename")
                 primarySchema = sourceConfig.get("databasename")
+            else:
+                primarySchema = None
 
-                layers = QgsProject.instance().mapLayersByName(
-                    relation.referencingLayer().name())
-                if layers:
-                    refLayer = layers[0]
-                uriComponents = QgsProviderRegistry.instance().decodeUri(
-                    refLayer.dataProvider().name(),
-                    refLayer.source())
+            layers = QgsProject.instance().mapLayersByName(
+                relation.referencingLayer().name())
+            if layers:
+                refLayer = layers[0]
+            uriComponents = QgsProviderRegistry.instance().decodeUri(
+                refLayer.dataProvider().name(),
+                refLayer.source())
+            if QGISUtilities.isDatabase(kStorageType):
                 sourceConfig = QGISUtilities.extractDatabaseSourceURI(
                     vStorageType,
                     uriComponents)
-                refTable = sourceConfig.get("tablename")
                 refSchema = sourceConfig.get("databasename")
+            else:
+                refSchema = None
 
-                isSchemas = primarySchema == schemaname and \
-                    refSchema == schemaname
-                if isSchemas:
-                    relationItem = RelationItems(
-                        relation.referencedLayer().name(), primaryTable,
-                        vField,
-                        relation.referencingLayer().name(), refTable,
-                        kField)
-                    relationItems.append(relationItem)
+            isSchemas = primarySchema == schemaname or primarySchema is None
+            isSchemas &= refSchema == schemaname or refSchema is None
+            if isSchemas:
+                relationItem = RelationItems(
+                    relation.referencedLayer().name(),
+                    vField,
+                    relation.referencingLayer().name(),
+                    kField)
+                relationItems.append(relationItem)
 
         # for relationItem in relationItems:
-        #     parent.appendLog(f'{relationItem.primaryTable}.'
+        #     parent.appendLog(f'{relationItem.primaryLayer}.'
         #                    f'{relationItem.primaryField} > '
-        #                    f'{relationItem.refTable}.'
+        #                    f'{relationItem.refLayer}.'
         #                    f'{relationItem.refField}')
         parent.appendLog(f'    {len(relationItems)} existing relations.')
         return relationItems
     # /getRelations
 
-    def getTableLayers(self, storageType, schemaname, tablename):
+    def getTableLayers(self, storageType, schemaname, tablename, dbf=False):
         """Get list of vector layers with a database datasource
            from a QGIS project.
         """
@@ -614,6 +609,17 @@ class FeaturesActions():
                     sourceTable = sourceConfig.get("tablename")
                     sourceSchema = sourceConfig.get("databasename")
                     if sourceSchema == schemaname and sourceTable == tablename:
+                        tableLayers.append(layer)
+                elif dbf and (
+                    lStorageType == "esri shapefile" or lStorageType == "gpx"
+                ):
+                    uriComponents = QgsProviderRegistry.instance().decodeUri(
+                        layer.dataProvider().name(),
+                        layer.source())
+                    sourceConfig = QGISUtilities.extractShapeSourceURI(
+                        lStorageType, uriComponents)
+                    sourcePath = sourceConfig.get("path")
+                    if sourcePath.replace('-', '_') == tablename:
                         tableLayers.append(layer)
         return tableLayers
     # /getTableLayers

@@ -47,13 +47,11 @@ class RelationItems():
     """
 
     def __init__(self,
-                 primaryLayer, primaryTable, primaryField,
-                 refLayer, refTable, refField):
+                 primaryLayer, primaryField,
+                 refLayer, refField):
         self.primaryLayer = primaryLayer
-        self.primaryTable = primaryTable
         self.primaryField = primaryField
         self.refLayer = refLayer
-        self.refTable = refTable
         self.refField = refField
 
     def __str__(self):
@@ -62,24 +60,18 @@ class RelationItems():
     def primaryLayer(self):
         return self.primaryLayer
 
-    def primaryTable(self):
-        return self.primaryTable
-
     def primaryField(self):
         return self.primaryField
 
     def refLayer(self):
         return self.refLayer
 
-    def refTable(self):
-        return self.refTable
-
     def refField(self):
         return self.refField
 
     def text(self):
-        return f'{self.primaryLayer}:{self.primaryTable}.{self.primaryField}' \
-               f' > {self.refLayer}:{self.refTable}{self.refField}'
+        return f'{self.primaryLayer} ({self.primaryField})' \
+               f' > {self.refLayer} ({self.refField})'
 # /RelationItems
 
 

@@ -544,6 +544,7 @@ class Utilities():
            name == 'SUBURB_LOCALITY' or \
            name == 'TOWN_CITY' or \
            name == 'APPELLATION' or \
+           name == 'AFFECTED_SURVEYS' or \
            name == 'VALUATION_NO_ASSESSMENT' or \
            name == 'ORGANISATION_VALUE' or \
            name == 'TERRITORIAL_AUTHORITY':
