@@ -128,6 +128,8 @@ Install LINZ Schema Loader from the QGIS plugin menu or set-up as a stand-alone 
     ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/linz_schema_loader<br/>
 <br/>
     The file "linz_schema_loader.pyz" is provided in the distribution as an executable Python application.<br/>
+    Alternatively, download the latest executable from
+<a href="https://github.com/grant-eureka/LINZ-Schema-Loader/releases">https://github.com/grant-eureka/LINZ-Schema-Loader/releases</a><br/>
     A Linux desktop file "linz_schema_loader.desktop" is also provided as a shortcut to the Python executable.<br/>
     The properties in the desktop file will have to be updated for the icon and environment variables to point to the right locations:<br/>
     • PYTHONPATH=/opt/qgis_3_44_11/python:$PYTHONPATH (the location of the PyQGIS modules, e.g. /usr/share/qgis/python)<br/>

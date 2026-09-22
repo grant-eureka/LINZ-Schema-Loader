@@ -421,6 +421,9 @@ class Utilities():
             if fieldName.lower() == 'building_id' and \
                fieldType.upper() == 'STRING':
                 return 'INTEGER'
+            if fieldName.lower() == 'appellation' and \
+               fieldType.upper() == 'STRING':
+                return 'VARCHAR'
             fieldType = fieldType.upper().replace('CHARACTER VARYING', 'TEXT') \
                 .replace('STRING', 'VARCHAR') \
                 .replace('INTEGER64', 'BIGINT') \
@@ -447,12 +450,15 @@ class Utilities():
         :returns: Database specific field size.
         :rtype: Int
         """
-        if fieldType == 'VARCHAR' and not width:
-            if fieldName.upper().endswith('CODE'):
-                width = 32
-            else:
-                width = 512
-        elif fieldType == 'STRING' and not width:
+        if fieldType == 'VARCHAR':
+            if fieldName.lower() == 'appellation':
+                width = 256
+            if width is None:
+                if fieldName.lower().endswith('code'):
+                    width = 32
+                else:
+                    width = 512
+        elif fieldType == 'STRING' and width is None:
             width = 1024
         elif fieldType == 'UUID':
             width = None
@@ -514,6 +520,19 @@ class Utilities():
         if fieldType.upper().endswith('TEXT') or \
            fieldType.upper().endswith('LOB'):
             return False
+        return Utilities.isFieldNameIndex(fieldName)
+    # /isCreateFieldIndex
+
+    def isFieldNameIndex(fieldName):
+        """Test if a field name should be indexed.
+        :param fieldName: Database field name.
+        :type fieldName: Str
+
+        :returns: True if field name should be index field.
+        :rtype: Boolean
+        """
+        if fieldName is None:
+            return False
         name = fieldName.upper()
         if name.endswith('_ID') or \
            name.endswith('_ID_PARENT') or \
@@ -521,6 +540,7 @@ class Utilities():
            name.endswith('_CODE'):
             return True
         if name == 'ID' or \
+           name == 'CODE' or \
            name == 'SURNAME' or \
            name == 'PRIME_SURNAME' or \
            name == 'CORPORATE_NAME' or \
@@ -544,13 +564,12 @@ class Utilities():
            name == 'SUBURB_LOCALITY' or \
            name == 'TOWN_CITY' or \
            name == 'APPELLATION' or \
-           name == 'AFFECTED_SURVEYS' or \
            name == 'VALUATION_NO_ASSESSMENT' or \
            name == 'ORGANISATION_VALUE' or \
            name == 'TERRITORIAL_AUTHORITY':
             return True
         return False
-    # /isCreateFieldIndex
+    # /isFieldNameIndex
 
     def getLatestDate(d1, d2):
         """Get the later of two dates of the same type.

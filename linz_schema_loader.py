@@ -490,6 +490,8 @@ class linz_schema_loader(QMainWindow, MainWindow, QgsMapCanvas):
                 self, self.cnx, self.schema[0], self.schema[1])
             self.schemasActions.createMissingIndexes(
                 self, self.cnx, self.schema[0])
+            self.schemasActions.analyseIndexes(
+                self, self.cnx, self.schema[0])
     # /doActionUpdateSchema
 
     def doActionDropSchema(self):

@@ -572,10 +572,10 @@ class SchemasActions():
                         fields = Utilities.getFields(
                             tree, geometry, geofield, key)
 #                        for field in fields:  # debug
-#                            print(f"{field.fieldName} {field.fieldType}")
+#                            parent.appendLog(
+#                                f"{field.fieldName} {field.fieldType}")
 
                         parent.appendLog(f'    features\t{fcnt:,}')
-
                         dataset = self.getDataset(
                             parent, cnx, schemaname, tablename, zipFileName)
                         if Database.isTableExist(
@@ -602,7 +602,7 @@ class SchemasActions():
                                     parent, cnx, schemaname, tablename)
                                 self.loadTable(
                                     parent, cnx,
-                                    schemaname, tablename, dataset,
+                                    schemaname, tablename,
                                     fields, geometry, key, append,
                                     directoryName, zipFileName, zip, zipDate,
                                     vrtpath + csvFileName, fcnt)
@@ -628,7 +628,7 @@ class SchemasActions():
                                     extents, prjId, fields)
                                 self.loadTable(
                                     parent, cnx,
-                                    schemaname, tablename, dataset,
+                                    schemaname, tablename,
                                     fields, geometry, key, False,
                                     directoryName, zipFileName, zip, zipDate,
                                     vrtpath + csvFileName, fcnt)
@@ -676,7 +676,7 @@ class SchemasActions():
                 f'    previous time\t{t}')
     # /logSchemaPreLoad
 
-    def loadTable(self, parent, cnx, schemaname, tablename, dataset,
+    def loadTable(self, parent, cnx, schemaname, tablename,
                   fields, geometry, key, append,
                   directoryName, zipFileName, zip, zipDate, csvFileName, fcnt):
         """Test if data has geometry or not.  Then call load routine.
@@ -687,8 +687,9 @@ class SchemasActions():
                 pass
                 geometry = self.loadTableFile(
                     parent, cnx,
-                    schemaname, tablename, fields, geometry, key, append,
-                    directoryName, zipFileName, zip, zipDate, csvFileName, fcnt)
+                    schemaname, tablename, fields, geometry, key,
+                    append, directoryName, zipFileName, zip, zipDate,
+                    csvFileName, fcnt)
             else:
                 parent.appendLog('    load non-geometry file')
                 self.loadTableFileDirect(
@@ -860,8 +861,8 @@ class SchemasActions():
     # /loadTableDirect
 
     def loadTableFile(self, parent, cnx,
-                      schemaname, tablename, fields, geometry, key,
-                      append, directoryName, zipFileName, zip, zipDate,
+                      schemaname, tablename, fields, geometry,
+                      key, append, directoryName, zipFileName, zip, zipDate,
                       csvFileName, fcnt):
         """Geometry data, so load data file row-by-row.
            Checks for valid geometry data.
@@ -1663,14 +1664,33 @@ class SchemasActions():
                 sql = f"ALTER TABLE {schemaname}.{field[0]}\n" \
                       f"ADD INDEX ({field[1]})"
                 Database.executeSQL(parent, cnx, sql, silent=True)
-            parent.appendLog(f'    anaylse indexes on {field[0].ljust(40)}'
-                             f'  {Utilities.getNowString()}...')
-            # sql = f"OPTIMIZE TABLE {schemaname}.{field[0]})"
-            sql = f"ANALYZE TABLE {schemaname}.{field[0]}"
-            Database.executeSQL(parent, cnx, sql, silent=True)
         parent.appendLog(f'Created indexes in {schemaname}')
         parent.unsetCursor()
     # /createMissingIndexes
+
+    def analyseIndexes(self, parent, cnx, schemaname):
+        """Analyse indexes in schema to gather table statistices for indexes.
+        """
+        parent.setCursor(Qt.CursorShape.WaitCursor)
+        parent.appendLog(f'\nAnalyse indexes in {schemaname}...')
+        sql = "SELECT t.TABLE_NAME\n" \
+              "FROM information_schema.TABLES t " \
+              "WHERE t.TABLE_SCHEMA = %s " \
+              "AND t.TABLE_TYPE='BASE TABLE' " \
+              "AND t.TABLE_NAME not in ('geometry_columns', " \
+              "'apatial_ref_sys', 'table_datasets')\n" \
+              "ORDER BY TABLE_NAME ASC"
+        par = tuple([schemaname])
+        tables = Database.readDatabase(parent, cnx, sql, par)
+        for table in tables:
+            parent.appendLog(f'    anaylse indexes on {table[0].ljust(40)}'
+                             f'  {Utilities.getNowString()}...')
+            # sql = f"OPTIMIZE TABLE {schemaname}.{table[0]})"
+            sql = f"ANALYZE TABLE {schemaname}.{table[0]}"
+            Database.executeSQL(parent, cnx, sql, silent=True)
+        parent.appendLog(f'Analysed indexes in {schemaname}')
+        parent.unsetCursor()
+    # /analyseIndexes
 
     def createIndexes(self, parent, cnx, schemaname, tablename, fields):
         """Create indexes on a table.
