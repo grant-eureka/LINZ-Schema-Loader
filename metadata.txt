@@ -25,8 +25,10 @@ repository=https://plugins.qgis.org/
 
 changelog=
   1.06.08
-    Convert "appellation" fields to VARCHAR when defined as String, to enable indexing.
+    When importing *.CSV data, convert "appellation" fields to VARCHAR when defined as String, to enable indexing.
     Analyse table indexes moved to its own method to remove repetition of SQL execute commands.
+    Additional relationships added from LINZ.
+    New view definitions.
   1.06.07
     Additional default index creation included. It is recommended to "Create Indexes" to update your schema.
     Creating relations now includes layers of esri shapefiles and gpx files if a known relationship exists. 

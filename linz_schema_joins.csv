@@ -19,6 +19,9 @@ nz_addresses,address_id,properties_details_vw,address_id
 nz_addresses_roads,road_id,nz_addresses,road_id
 nz_addresses_roads,road_id,nz_addresses_road_sections,road_id
 ,,,
+nz_building_outlines,building_id,nz_properties_property_building_reference,building_id
+nz_building_outlines,building_id,properties_buildings_vw,building_id
+,,,
 nz_building_outlines_all_sources,building_id,nz_properties_property_building_reference,building_id
 nz_building_outlines_all_sources,building_id,properties_buildings_vw,building_id
 ,,,

@@ -203,6 +203,22 @@ LEFT OUTER JOIN {schema}.nz_properties_parent_property cppp ON cppp.parent_unit_
 LEFT OUTER JOIN {schema}.nz_properties_perspective pp ON pp.unit_of_property_id = u.unit_of_property_id
 ;
 
+--DEPENDENCIES--{nz_properties_unit_of_property nz_properties_property_title_reference nz_properties_property_address_reference nz_properties_property_building_reference nz_building_outlines}
+CREATE OR REPLACE VIEW {schema}.properties_buildings_vw as
+SELECT pbr.unit_of_property_id, u.property_name,
+ tr.title_no,
+ par.address_id,
+ pbr.building_id,
+ b.name, b.uses building_use, b.suburb_locality, b.town_city, b.territorial_authority,
+  b.capture_method, b.capture_source_id, b.capture_source_name, b.capture_source_from, b.capture_source_to,
+  b.last_modified
+FROM {schema}.nz_properties_property_building_reference pbr
+INNER JOIN {schema}.nz_properties_unit_of_property u ON u.unit_of_property_id = pbr.unit_of_property_id
+INNER JOIN {schema}.nz_building_outlines b ON b.building_id = pbr.building_id
+LEFT OUTER JOIN {schema}.nz_properties_property_title_reference tr ON tr.unit_of_property_id = u.unit_of_property_id 
+LEFT OUTER JOIN {schema}.nz_properties_property_address_reference par ON par.unit_of_property_id = u.unit_of_property_id
+;
+
 --DEPENDENCIES--{nz_properties_unit_of_property nz_properties_property_title_reference nz_properties_property_address_reference nz_properties_property_building_reference nz_building_outlines_all_sources}
 CREATE OR REPLACE VIEW {schema}.properties_buildings_vw as
 SELECT pbr.unit_of_property_id, u.property_name,
@@ -219,7 +235,7 @@ LEFT OUTER JOIN {schema}.nz_properties_property_title_reference tr ON tr.unit_of
 LEFT OUTER JOIN {schema}.nz_properties_property_address_reference par ON par.unit_of_property_id = u.unit_of_property_id
 ;
 
---DEPENDENCIES--{nz_properties_unit_of_property nz_properties_national_district_valuation_roll nz_properties_ownership nz_properties_zoning nz_properties_building_age nz_properties_mass_contour nz_properties_mass_view nz_properties_mass_scope_of_view nz_properties_mass_decks nz_properties_mass_workshop_or_laundry nz_properties_mass_other_improvements}
+--DEPENDENCIES--{nz_properties_unit_of_property nz_properties_national_district_valuation_roll nz_properties_ownership nz_properties_zoning nz_properties_building_age nz_properties_mass_contour nz_properties_mass_view nz_properties_mass_scope_of_view nz_properties_mass_decks nz_properties_mass_workshop_or_laundry nz_properties_mass_other_improvements nz_properties_sale_group}
 CREATE OR REPLACE VIEW {schema}.properties_valuation_details_vw as
 SELECT u.unit_of_property_id, u.property_name,
  vr.valuation_no_roll, vr.valuation_no_assessment, vr.valuation_no_suffix, vr.district_ta_code, vr.situation_name,
@@ -243,7 +259,8 @@ SELECT u.unit_of_property_id, u.property_name,
  vr.mass_workshop_laundry, npmwol.description mass_workshop_laundry_description,
  vr.mass_other_improvements, npmoi.description mass_other_improvements_description,
  vr.mass_garage_freestanding, vr.mass_garaged_under_main_roof,
- vr.production, vr.sale_group
+ vr.production,
+ vr.sale_group, sg.description sale_group_description
 FROM {schema}.nz_properties_unit_of_property u
 LEFT OUTER JOIN {schema}.nz_properties_national_district_valuation_roll vr ON vr.unit_of_property_id = u.unit_of_property_id 
 LEFT OUTER JOIN {schema}.nz_properties_ownership npo ON npo.ownership_code = vr.ownership_code 
@@ -255,4 +272,5 @@ LEFT OUTER JOIN {schema}.nz_properties_mass_scope_of_view npmsov ON npmsov.scope
 LEFT OUTER JOIN {schema}.nz_properties_mass_decks npmd ON npmd.decks_code = vr.mass_deck 
 LEFT OUTER JOIN {schema}.nz_properties_mass_workshop_or_laundry npmwol ON npmwol.workshop_or_laundry_code = vr.mass_workshop_laundry 
 LEFT OUTER JOIN {schema}.nz_properties_mass_other_improvements npmoi ON npmoi.other_improvements_code = vr.mass_other_improvements 
+LEFT OUTER JOIN {schema}.nz_properties_sale_group sg ON sg.code = vr.sale_group
 ;
