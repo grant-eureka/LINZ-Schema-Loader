@@ -27,6 +27,7 @@ changelog=
   1.06.09
     Additional relationships added from LINZ to include all Simplified property boundary and ownership tables.
     Replace multiple brackets to single brackets, for MULTIPOINT text, to correct NULL shape insert error.
+    Allow null shape for nz_parcels table.
   1.06.08
     When importing *.CSV data, convert "appellation" fields to VARCHAR when defined as String, to enable indexing.
     Analyse table indexes moved to its own method to remove repetition of SQL execute commands.

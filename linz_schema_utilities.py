@@ -751,6 +751,9 @@ class Utilities():
         if geometry == 'MULTI' + geotype \
            or geometry == geotype + 'COLLECTION':
             value = value.replace(geotype, f'{geometry}(', 1) + ')'
+        if value[:13] == 'MULTIPOINT ((' \
+           and value[len(value) - 2:] == '))':
+            value = value[0:12] + value[14:len(value) - 1]
         return (geoFromText, value)
     # /getGeometryValue
 
