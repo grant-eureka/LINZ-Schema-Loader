@@ -166,7 +166,9 @@ class FeaturesActions():
                 parent.appendLog('    create vector layer for table '
                                  f'{table[1]}...')
                 layerName = table[1].replace("_", " ").title() \
-                    .replace("Nz", "NZ").replace("Linz", "LINZ")
+                    .replace("Nz", "NZ") \
+                    .replace("Linz", "LINZ") \
+                    .replace(" Vw", " View")
                 uri = f'{url},tables={table[1]}'
                 # useEstimatedMetadata option not available
                 # cnt = Database.getTableMetadataCount(
