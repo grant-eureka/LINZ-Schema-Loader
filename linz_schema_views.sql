@@ -160,6 +160,14 @@ from {schema}.landonline_encumbrance e
  INNER JOIN {schema}.landonline_encumbrancee ee ON es.id = ee.ens_id
 ;
 
+--DEPENDENCIES--{landonline_system_code_group landonline_system_code}
+CREATE OR REPLACE VIEW {schema}.landonline_system_codes_vw as
+select distinct  scg.code scg_code, scg.description scg_description, scg.data_type,
+ sc.code, sc.description, sc.status
+from {schema}.landonline_system_code_group scg
+ INNER JOIN {schema}.landonline_system_code sc ON sc.scg_code = scg.code
+;
+
 --DEPENDENCIES--{nz_properties_unit_of_property nz_properties_property_title_reference nz_properties_property_address_reference nz_properties_parent_property nz_properties_perspective nz_property_titles nz_property_boundaries}
 CREATE OR REPLACE VIEW {schema}.properties_details_vw as
 SELECT u.unit_of_property_id, u.property_name,
