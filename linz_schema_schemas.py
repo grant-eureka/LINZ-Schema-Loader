@@ -885,7 +885,6 @@ class SchemasActions():
         reader = csv.DictReader(csvFile)
         cursor = Database.openSqlCursor(parent, cnx)
         sql = self.loadTableFileSql(schemaname, tablename, fields)
-        isParcels = (tablename == 'nz_parcels')
         # if True:
         if cursor:
             for row in reader:
@@ -908,8 +907,6 @@ class SchemasActions():
                             value = row[field.fieldSrc]
                             if Utilities.isGeometryField(field.fieldType):
                                 if Utilities.isNull(value):
-                                    value = None
-                                    pars.append(value)
                                     geoMissing = True
                                 else:
                                     geotype = value[0:value.find('(') - 1] \
@@ -937,13 +934,13 @@ class SchemasActions():
                             else:
                                 # may need more conversions for field types
                                 pars.append(value)
-                    if geoMissing and not isParcels:
+                    if geoMissing:
                         counters.increment(counters.FAIL)
                         parent.appendLog(
                             f'Error inserting record {counters.readCnt} '
                             f'(id={keyValue}) into '
                             f'{schemaname}.{tablename}'
-                            f' - Invalid feature geometry')
+                            f' - Invalid, or missing, feature geometry')
                     else:
                         par = tuple(pars)
                         # parent.appendLog(f"{sql}\n{par}")  # debug
@@ -1203,14 +1200,13 @@ class SchemasActions():
             sql += f"{field.fieldName} {field.fieldType}"
             if field.fieldWidth:
                 sql += f"({field.fieldWidth})"
-            isParcels = (tablename == 'nz_parcels')
             if field.fieldSrc == '1' or field.isKey:
                 if hasPK:
                     sql += " NOT NULL UNIQUE KEY"
                 else:
                     sql += " PRIMARY KEY"
                     hasPK = True
-            elif Utilities.isGeometryField(field.fieldType) and not isParcels:
+            elif Utilities.isGeometryField(field.fieldType):
                 sql += " NOT NULL"
         sql += ")"
         # parent.appendLog(sql)  # debug

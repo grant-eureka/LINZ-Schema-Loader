@@ -49,7 +49,7 @@ nz_strata_parcels,id,nz_property_boundaries,parcel_id
 nz_strata_parcels,id,nz_title_parcel_association_list,par_id
 nz_strata_parcels,id,nz_survey_affected_parcels_list,par_id
 nz_strata_parcels,id,nz_parcel_statutory_actions_list,par_id
-nz_strata_parcels,id,nz_parcel_owners_list_vw,parcel_id,
+nz_strata_parcels,id,nz_parcel_owners_list_vw,parcel_id
 nz_strata_parcels,id,nz_parcel_owners_vw,parcel_id
 nz_strata_parcels,id,nz_parcel_titles_vw,parcel_id
 nz_strata_parcels,id,properties_details_vw,parcel_id
